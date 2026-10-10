@@ -2,8 +2,8 @@
 
 CAIE utiliza un único acceso privado desde los cinco teléfonos. No es necesario proporcionar listas de correos ni gestionar cuentas/roles desde la interfaz. La cuenta ya preparada tiene los permisos para registrar compras y gestionar la tienda. El esquema conserva controles de permisos para proteger la base, pero no añade pasos al flujo cotidiano.
 
-1. Iniciar el servidor local (`npm run dev`).
-2. Abrir `C:\Users\emili\Documents\CAIE-privado\primer-acceso.txt` y utilizar el enlace temporal.
+1. Abrir `C:\Users\emili\Documents\CAIE-privado\primer-acceso.html` en el navegador (el enlace también está en `primer-acceso.txt`).
+2. Pulsar **Entrar para elegir mi contraseña**. El enlace temporal lleva a la aplicación publicada en `https://emiliano-garcia1804.github.io/caie_tienda/`; no requiere iniciar el servidor local.
 3. Seleccionar la inicial de la cuenta en la esquina superior y establecer una contraseña en Mi cuenta.
 4. Compartir el correo de acceso y esa contraseña únicamente con los voluntarios autorizados, por un canal privado.
 5. Iniciar sesión en cada teléfono y cerrar sesión al terminar. No se requiere crear otro administrador.

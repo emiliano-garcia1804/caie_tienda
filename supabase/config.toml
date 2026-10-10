@@ -11,8 +11,8 @@ shadow_port = 54320
 major_version = 17
 [auth]
 enabled = true
-site_url = "http://localhost:5173/caie-tienda/"
-additional_redirect_urls = ["http://localhost:5173/caie-tienda/", "http://127.0.0.1:5173/caie-tienda/", "http://127.0.0.1:4173/caie-tienda/"]
+site_url = "https://emiliano-garcia1804.github.io/caie_tienda/"
+additional_redirect_urls = ["https://emiliano-garcia1804.github.io/caie_tienda/", "http://localhost:5173/caie-tienda/", "http://127.0.0.1:5173/caie-tienda/", "http://127.0.0.1:4173/caie-tienda/"]
 enable_signup = false
 [auth.email]
 enable_signup = true
