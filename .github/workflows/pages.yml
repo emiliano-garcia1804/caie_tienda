@@ -8,6 +8,7 @@ on:
         type: string
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -24,6 +25,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: python3 tests/retain-pages-assets.test.py
       - run: npm test
       - run: npm run build
         env:
@@ -31,10 +33,24 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Conservar archivos de sesiones abiertas
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .local/previous-pages
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?per_page=10" --jq '.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main") | .id' > .local/previous-pages/runs.txt
+          head -n 2 .local/previous-pages/runs.txt | while read -r previous_run; do
+            if gh run download "$previous_run" --repo "$GITHUB_REPOSITORY" --name github-pages --dir ".local/previous-pages/$previous_run"; then
+              python3 scripts/retain-pages-assets.py ".local/previous-pages/$previous_run/artifact.tar"
+            else
+              echo "::warning::No se pudo recuperar el artefacto anterior $previous_run (puede haber caducado)."
+            fi
+          done
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          retention-days: 30
   deploy:
     needs: build
     runs-on: ubuntu-latest

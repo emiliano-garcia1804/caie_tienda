@@ -12,6 +12,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: python3 tests/retain-pages-assets.test.py
       - run: npm run build
         env:
           VITE_PUBLIC_ACCESS: "true"
