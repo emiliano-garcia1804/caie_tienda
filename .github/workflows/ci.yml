@@ -21,8 +21,33 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql
-          echo "CAIE_PG_BIN=$(pg_config --bindir)" >> "$GITHUB_ENV"
-      - run: npm run test:db
+          PG_BIN="$(pg_config --bindir)"
+          for executable in postgres initdb pg_ctl; do
+            test -x "$PG_BIN/$executable"
+            "$PG_BIN/$executable" --version
+          done
+          echo "CAIE_PG_BIN=$PG_BIN" >> "$GITHUB_ENV"
+      - name: Pruebas PostgreSQL real con datos sintéticos
+        id: db-tests
+        run: npm run test:db
+      - name: Diagnóstico PostgreSQL
+        if: failure() && steps.db-tests.outcome == 'failure'
+        run: |
+          if [ -f .local/postgres-test.log ]; then
+            tail -n 200 .local/postgres-test.log
+          else
+            echo "No se generó postgres-test.log; revisar errores de initdb y rutas de ejecutables en el paso anterior."
+          fi
+      - name: Guardar diagnóstico PostgreSQL
+        uses: actions/upload-artifact@v4
+        if: failure() && steps.db-tests.outcome == 'failure'
+        with:
+          name: postgres-failures-synthetic
+          path: |
+            .local/postgres-test.log
+            docs/db-test-results.json
+          include-hidden-files: true
+          if-no-files-found: warn
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:

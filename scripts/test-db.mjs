@@ -1,88 +1,178 @@
-import { spawnSync, spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   readFileSync,
   existsSync,
   mkdirSync,
   writeFileSync,
+  chmodSync,
   openSync,
   closeSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:net";
 import assert from "node:assert/strict";
 import pg from "pg";
 const root = resolve("."),
   local = join(root, ".local"),
   cluster = join(local, "pg-test-cluster"),
+  socketDir = join(local, "pg-test-sockets"),
+  logPath = join(local, "postgres-test.log"),
   port = 55439;
+const pgConfig = spawnSync("pg_config", ["--bindir"], {
+  encoding: "utf8",
+  windowsHide: true,
+});
 const bin =
   process.env.CAIE_PG_BIN ||
+  (pgConfig.status === 0 && pgConfig.stdout.trim()) ||
   (process.platform === "win32"
     ? "C:/Program Files/PostgreSQL/15/bin"
     : "/usr/lib/postgresql/15/bin");
 const exe = (name) =>
   join(bin, name + (process.platform === "win32" ? ".exe" : ""));
 mkdirSync(local, { recursive: true });
+function run(name, args) {
+  // On Windows postgres can inherit pg_ctl's output handles. Use a file for
+  // startup output so spawnSync does not wait for a pipe held by the server.
+  const outputPath = join(local, "pg-ctl-start.log");
+  const fd =
+    name === "pg_ctl" && args.at(-1) === "start"
+      ? openSync(outputPath, "w")
+      : undefined;
+  try {
+    const r = spawnSync(exe(name), args, {
+      encoding: "utf8",
+      windowsHide: true,
+      ...(fd === undefined ? {} : { stdio: ["ignore", fd, fd] }),
+    });
+    if (fd !== undefined) r.stdout = readFileSync(outputPath, "utf8");
+    return r;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
 function command(name, args) {
-  const r = spawnSync(exe(name), args, {
-    encoding: "utf8",
-    windowsHide: true,
-    stdio: "ignore",
-  });
-  if (r.status !== 0)
+  const r = run(name, args);
+  if (r.error || r.status !== 0)
     throw new Error(
-      `${name}: exit ${r.status}; ${r.error ?? "ver .local/postgres-test.log"}`,
+      `${exe(name)}: exit ${r.status}, signal ${r.signal ?? "none"}\n${r.error?.message ?? ""}\n${r.stdout ?? ""}${r.stderr ?? ""}`,
     );
+  return r.stdout.trim();
 }
-if (!existsSync(join(cluster, "PG_VERSION"))) {
-  command("initdb", [
-    "-D",
-    cluster,
-    "-U",
-    "caie_test",
-    "--auth=trust",
-    "--encoding=UTF8",
-    "--locale=C",
-  ]);
-  writeFileSync(join(cluster, "CAIE_TEST_ONLY"), "Synthetic tests only");
+function printLog() {
+  if (!logPrepared) {
+    console.error("PostgreSQL was not launched; no server log for this run.");
+    return;
+  }
+  try {
+    console.error(
+      `--- ${logPath} (last 100 lines) ---\n${readFileSync(logPath, "utf8").split(/\r?\n/).slice(-100).join("\n")}`,
+    );
+  } catch (e) {
+    console.error(`Unable to read PostgreSQL log: ${e.message}`);
+  }
 }
-if (!existsSync(join(cluster, "CAIE_TEST_ONLY")))
-  throw new Error("Refusing to use an unowned PostgreSQL cluster.");
 const db = "caie_test_" + randomUUID().replaceAll("-", ""),
   connection = { host: "127.0.0.1", port, user: "caie_test", database: db };
 let master,
   pool,
-  started = false;
+  started = false,
+  databaseCreated = false,
+  logPrepared = false,
+  engine = "PostgreSQL (version unavailable)";
 const results = [];
 try {
-  const log = openSync(join(local, "postgres-test.log"), "a");
-  const server = spawn(
-    exe("postgres"),
-    ["-D", cluster, "-p", String(port), "-h", "127.0.0.1"],
-    { windowsHide: true, detached: true, stdio: ["ignore", log, log] },
+  const versions = ["postgres", "initdb", "pg_ctl"].map((name) =>
+    command(name, ["--version"]),
   );
-  server.unref();
-  closeSync(log);
-  started = true;
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const probe = new pg.Client({
-      ...connection,
-      database: "postgres",
-      connectionTimeoutMillis: 500,
-    });
-    try {
-      await probe.connect();
-      await probe.end();
-      break;
-    } catch (e) {
-      void probe.end().catch(() => {});
-      if (attempt === 99) throw e;
-      await new Promise((r) => setTimeout(r, 100));
-    }
+  const major = versions[0].match(/PostgreSQL\) (\d+)/)?.[1];
+  if (
+    !major ||
+    Number(major) < 15 ||
+    versions.some((v) => v.match(/PostgreSQL\) (\d+)/)?.[1] !== major)
+  )
+    throw new Error(
+      `Expected matching PostgreSQL >=15 binaries: ${versions.join(", ")}`,
+    );
+  engine = `${versions[0]}; auth.uid shim local, sin servicio Supabase Auth`;
+  console.log(`PostgreSQL binaries: ${bin}\n${versions.join("\n")}`);
+  if (existsSync(cluster) && !existsSync(join(cluster, "CAIE_TEST_ONLY")))
+    throw new Error("Refusing to use an unowned PostgreSQL cluster.");
+  if (!existsSync(join(cluster, "PG_VERSION"))) {
+    command("initdb", [
+      "-D",
+      cluster,
+      "-U",
+      "caie_test",
+      "--auth=trust",
+      "--encoding=UTF8",
+      "--locale=C",
+    ]);
+    writeFileSync(join(cluster, "CAIE_TEST_ONLY"), "Synthetic tests only");
   }
-  master = new pg.Client({ ...connection, database: "postgres" });
+  if (readFileSync(join(cluster, "PG_VERSION"), "utf8").trim() !== major)
+    throw new Error(
+      "Test cluster version does not match PostgreSQL binaries; use a matching CAIE_PG_BIN.",
+    );
+  const status = run("pg_ctl", ["-D", cluster, "status"]);
+  if (status.status !== 3)
+    throw new Error(
+      `Refusing to start an already running or inaccessible test cluster: ${status.stdout}${status.stderr}`,
+    );
+  // Never connect to another service that already owns the test port.
+  await new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen({ host: "127.0.0.1", port, exclusive: true }, () =>
+      probe.close((e) => (e ? reject(e) : resolve())),
+    );
+  });
+  if (process.platform !== "win32") {
+    mkdirSync(socketDir, { recursive: true, mode: 0o700 });
+    chmodSync(socketDir, 0o700);
+  }
+  writeFileSync(logPath, "");
+  logPrepared = true;
+  // Windows uses TCP only; Linux must not use the package's system socket directory.
+  const options = `-p ${port} -h 127.0.0.1 -k "${process.platform === "win32" ? "" : socketDir}" -c unix_socket_permissions=0700`;
+  try {
+    command("pg_ctl", [
+      "-D",
+      cluster,
+      "-l",
+      logPath,
+      "-o",
+      options,
+      "-w",
+      "-t",
+      "60",
+      "start",
+    ]);
+    started = true;
+  } catch (e) {
+    // A startup timeout can leave a live server. Stop only our previously stopped cluster.
+    started = run("pg_ctl", ["-D", cluster, "status"]).status === 0;
+    throw e;
+  }
+  master = new pg.Client({
+    ...connection,
+    database: "postgres",
+    connectionTimeoutMillis: 5000,
+  });
   await master.connect();
+  // Verify the instance before creating or modifying any database.
+  assert.equal(
+    resolve((await master.query("show data_directory")).rows[0].data_directory),
+    cluster,
+  );
+  assert.equal(
+    (await master.query("show unix_socket_directories")).rows[0]
+      .unix_socket_directories,
+    process.platform === "win32" ? "" : socketDir,
+  );
   await master.query(`create database ${db}`);
+  databaseCreated = true;
   pool = new pg.Pool({ ...connection, max: 12 });
   pool.on("error", () => {});
   await pool.query(
@@ -202,7 +292,7 @@ try {
       console.error(`FAIL ${name}: ${e.stack}`);
     }
   }
-  await test("Migración completa sobre PostgreSQL 15 real", async () => {
+  await test(`Migración completa sobre PostgreSQL ${major} real`, async () => {
     assert.equal(
       (
         await pool.query(
@@ -706,21 +796,49 @@ try {
     error: e.stack,
   });
   console.error(e.stack);
+  printLog();
 } finally {
-  if (pool) await pool.end();
-  if (master) {
-    await master.query(`drop database if exists ${db} with (force)`);
-    await master.end();
+  async function cleanup(name, fn) {
+    try {
+      await fn();
+    } catch (e) {
+      results.push({
+        name: `Limpieza: ${name}`,
+        status: "FAIL",
+        error: e.stack,
+      });
+      console.error(`Cleanup failed (${name}): ${e.stack}`);
+      printLog();
+    }
   }
-  if (started) command("pg_ctl", ["-D", cluster, "-m", "fast", "-w", "stop"]);
+  if (pool) await cleanup("pool", () => pool.end());
+  if (master) {
+    if (databaseCreated)
+      await cleanup("base sintética", () =>
+        master.query(`drop database if exists ${db} with (force)`),
+      );
+    await cleanup("conexión", () => master.end());
+  }
+  if (started)
+    await cleanup("servidor", () =>
+      command("pg_ctl", [
+        "-D",
+        cluster,
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "60",
+        "stop",
+      ]),
+    );
   mkdirSync(join(root, "docs"), { recursive: true });
   writeFileSync(
     join(root, "docs/db-test-results.json"),
     JSON.stringify(
       {
         executed_at: new Date().toISOString(),
-        engine:
-          "PostgreSQL 15 real; auth.uid shim local, sin servicio Supabase Auth",
+        engine,
         results,
       },
       null,

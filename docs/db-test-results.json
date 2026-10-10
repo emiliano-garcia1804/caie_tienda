@@ -1,6 +1,6 @@
 {
-  "executed_at": "2026-10-10T02:29:01.510Z",
-  "engine": "PostgreSQL 15 real; auth.uid shim local, sin servicio Supabase Auth",
+  "executed_at": "2026-10-10T02:49:10.359Z",
+  "engine": "postgres (PostgreSQL) 15.4; auth.uid shim local, sin servicio Supabase Auth",
   "results": [
     {
       "name": "Migración completa sobre PostgreSQL 15 real",
