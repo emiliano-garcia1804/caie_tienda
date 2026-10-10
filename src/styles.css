@@ -1133,6 +1133,14 @@ footer span {
   .operator {
     gap: 4px;
   }
+  .quick-export {
+    width: 44px;
+    padding: 10px;
+    flex-shrink: 0;
+  }
+  .quick-export > span {
+    display: none;
+  }
   .avatar {
     width: 32px;
     height: 32px;

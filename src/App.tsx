@@ -303,7 +303,7 @@ export default function App({ accessError }: { accessError?: string | null }) {
         {simpleAccess ? (
           <div className="operator">
             <button
-              className="secondary"
+              className="secondary quick-export"
               disabled={exporting}
               onClick={download}
               aria-label="Descargar Excel actualizado"

@@ -10,6 +10,8 @@ Validación de la versión sin formularios de correo ni contraseña: build PASS,
 
 La migración adicional solo amplía `admin_participant` para aceptar un ID nulo al crear un participante. Se comprobaron saldo decimal exacto, auditoría, rechazo de operador/anónimo y rollback de altas inválidas. Todas las pruebas anteriores de atomicidad, saldos, inventario, cinco operadores, idempotencia, anulaciones y RLS siguen ejecutándose. No se hicieron compras ni altas de prueba sobre datos reales.
 
+La primera ejecución de esta etapa en GitHub Actions detectó que el botón de Excel desbordaba el encabezado de 320 px en Ubuntu. En teléfonos se muestra ahora un botón de descarga de 44 px con su nombre accesible, conservando las comprobaciones de ausencia de desplazamiento horizontal.
+
 El resumen que sigue documenta la entrega anterior y sus verificaciones originales.
 
 ## Resumen ejecutado
