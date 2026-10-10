@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import ExcelJS from "exceljs";
 const user = "11111111-1111-4111-8111-111111111111",
   person = "22222222-2222-4222-8222-222222222222",
   product = "33333333-3333-4333-8333-333333333333",
@@ -215,15 +216,35 @@ async function setup(
           state: "confirmed",
         });
       }
+      if (url.includes("/rpc/admin_participant")) {
+        if (body.p_id === null)
+          data.participants.push({
+            id: crypto.randomUUID(),
+            name: body.p_name,
+            group_name: body.p_group,
+            balance: body.p_balance,
+            purchased: false,
+          });
+        return json(null);
+      }
+      if (url.includes("/rpc/admin_product")) {
+        if (body.p_id === null)
+          data.products.push({
+            id: crypto.randomUUID(),
+            name: body.p_name,
+            category: body.p_category,
+            price: body.p_price,
+            stock: body.p_stock,
+            active: body.p_active,
+            availability: "available",
+          });
+        return json(null);
+      }
       return json({});
     },
   );
-  await page.goto("");
-  await page.getByLabel("Correo electrónico").fill("sintetica@example.invalid");
-  await page
-    .getByLabel("Contraseña", { exact: true })
-    .fill("synthetic-password");
-  await page.getByRole("button", { name: "Entrar a la tienda" }).click();
+  const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: user, exp: Math.floor(Date.now() / 1000) + 3600, aud: "authenticated", role: "authenticated" })).toString("base64url")}.test`;
+  await page.goto(`#caie_access_token=${token}&caie_refresh_token=synthetic`);
   await expect(
     page.getByRole("heading", { name: "Bienvenido a la tienda" }),
   ).toBeVisible();
@@ -405,6 +426,7 @@ test("Administración, exportación XLSX, filtros y cierre de sesión", async ({
   const download = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Descargar Excel actualizado" })
+    .last()
     .click();
   expect((await download).suggestedFilename()).toMatch(/CAIE-Tienda.*\.xlsx/);
   await page.getByRole("button", { name: "Productos", exact: true }).click();
@@ -415,31 +437,137 @@ test("Administración, exportación XLSX, filtros y cierre de sesión", async ({
   await page.getByRole("button", { name: /Cobija de prueba/ }).click();
   await expect(page.getByLabel("Precio en horas")).toHaveValue("2");
   await noOverflow(page);
-  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await page.getByText("Acceso de este teléfono", { exact: true }).click();
+  const logout = page.waitForRequest((r) =>
+    r.url().includes("/auth/v1/logout"),
+  );
+  await page
+    .getByRole("button", { name: "Cerrar acceso de este teléfono" })
+    .click();
+  expect((await logout).url()).toContain("scope=local");
   await expect(
-    page.getByRole("button", { name: "Entrar a la tienda" }),
+    page.getByRole("heading", { name: "Abre el enlace de tu teléfono" }),
   ).toBeVisible();
 });
-test("Acceso sencillo: elegir contraseña sin perder sesión ni pantalla", async ({
+test("Acceso directo persiste al recargar sin correo, contraseña ni tokens en URL", async ({
   page,
 }) => {
   await setup(page);
-  await page.getByRole("link", { name: "Mi cuenta", exact: true }).click();
+  expect(page.url()).not.toContain("token");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Bienvenido a la tienda" }),
+  ).toBeVisible();
+  await expect(
+    page.locator('input[type="email"], input[type="password"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Mi cuenta", exact: true }),
+  ).toHaveCount(0);
+  const download = page.waitForEvent("download");
   await page
-    .getByLabel("Nueva contraseña", { exact: true })
-    .fill("Nueva-clave-de-prueba-123");
+    .getByRole("button", { name: "Descargar Excel actualizado" })
+    .click();
+  expect((await download).suggestedFilename()).toMatch(/CAIE-Tienda.*\.xlsx/);
+  await noOverflow(page);
+});
+
+test("Añadir participante, conservarlo al recargar y descargarlo en Excel", async ({
+  page,
+}) => {
+  const data = await setup(page);
   await page
-    .getByLabel("Repetir contraseña", { exact: true })
-    .fill("Distinta-clave-prueba");
-  await page.getByRole("button", { name: "Guardar contraseña" }).click();
-  await expect(page.getByRole("alert")).toContainText("deben coincidir");
+    .getByRole("link", { name: "Gestionar tienda", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Agregar participante" }).click();
+  const form = page
+    .locator("form")
+    .filter({ has: page.getByRole("heading", { name: "Nuevo participante" }) });
+  await form
+    .getByLabel("Nombre", { exact: true })
+    .fill("Persona nueva sintética");
+  await form.getByLabel("Grupo del participante").selectOption("Grandes");
+  await form.getByLabel("Saldo de horas").fill("12.345");
+  await form.getByRole("button", { name: "Guardar participante" }).click();
+  await expect(page.getByRole("status")).toContainText("Cambios guardados");
+  await expect(
+    page.getByRole("heading", { name: "Nuevo participante" }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /Persona nueva sintética/ }),
+  ).toBeVisible();
+  expect(data.participants).toHaveLength(4);
+  const download = page.waitForEvent("download");
   await page
-    .getByLabel("Repetir contraseña", { exact: true })
-    .fill("Nueva-clave-de-prueba-123");
-  await page.getByRole("button", { name: "Guardar contraseña" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Contraseña actualizada",
-  );
+    .getByRole("button", { name: "Descargar Excel actualizado" })
+    .first()
+    .click();
+  const file = await download;
+  const path = await file.path();
+  expect(path).not.toBeNull();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(readFileSync(path!));
+  const sheet = workbook.getWorksheet("Horas")!;
+  expect(sheet.getRow(5).values).toEqual([
+    ,
+    "Persona nueva sintética",
+    "Grandes",
+    12.345,
+    "Pendiente",
+  ]);
+  await page.getByRole("button", { name: "Productos", exact: true }).click();
+  await page.getByRole("button", { name: "Agregar producto" }).click();
+  const productForm = page
+    .locator("form")
+    .filter({ has: page.getByRole("heading", { name: "Nuevo producto" }) });
+  await productForm
+    .getByLabel("Nombre", { exact: true })
+    .fill("Producto nuevo sintético");
+  await productForm.getByLabel("Categoría del producto").selectOption("Hogar");
+  await productForm.getByLabel("Precio en horas").fill("1.25");
+  await productForm.getByLabel("Existencias (unidades)").fill("15");
+  await productForm.getByRole("button", { name: "Guardar producto" }).click();
+  await expect(
+    page.getByRole("button", { name: /Producto nuevo sintético/ }),
+  ).toBeVisible();
+  const nextDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Descargar Excel actualizado" })
+    .first()
+    .click();
+  const nextFile = await nextDownload;
+  const nextWorkbook = new ExcelJS.Workbook();
+  await nextWorkbook.xlsx.load(readFileSync((await nextFile.path())!));
+  const inventory = nextWorkbook.getWorksheet("Inventario")!;
+  const added = inventory
+    .getRows(2, inventory.rowCount - 1)!
+    .find((row) => row.getCell(1).value === "Producto nuevo sintético");
+  expect(added?.values).toEqual([
+    ,
+    "Producto nuevo sintético",
+    1.25,
+    15,
+    "Hogar",
+  ]);
+  await noOverflow(page);
+});
+
+test("URL pública no muestra registros ni pide correo o contraseña", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/rpc/")) requests.push(r.url());
+  });
+  await page.goto("");
+  await expect(
+    page.getByRole("heading", { name: "Abre el enlace de tu teléfono" }),
+  ).toBeVisible();
+  await expect(
+    page.locator('input[type="email"], input[type="password"]'),
+  ).toHaveCount(0);
+  expect(requests).toEqual([]);
   await noOverflow(page);
 });
 test("Catálogo búsqueda y categorías, conexión y objetivos táctiles", async ({

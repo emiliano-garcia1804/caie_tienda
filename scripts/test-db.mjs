@@ -7,6 +7,7 @@ import {
   chmodSync,
   openSync,
   closeSync,
+  readdirSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -178,19 +179,22 @@ try {
   await pool.query(
     `do $$begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin;end if;if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin;end if;end$$; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;`,
   );
-  const migration = readFileSync(
-    join(root, "supabase/migrations/202610090001_core.sql"),
-    "utf8",
-  );
-  try {
-    await pool.query(migration);
-  } catch (e) {
-    if (e.position)
-      console.error(
-        "SQL near error:",
-        migration.slice(Number(e.position) - 100, Number(e.position) + 100),
-      );
-    throw e;
+  const migrationsDir = join(root, "supabase/migrations");
+  for (const file of readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()) {
+    const migration = readFileSync(join(migrationsDir, file), "utf8");
+    try {
+      await pool.query(migration);
+    } catch (e) {
+      console.error(`Migration failed: ${file}`);
+      if (e.position)
+        console.error(
+          "SQL near error:",
+          migration.slice(Number(e.position) - 100, Number(e.position) + 100),
+        );
+      throw e;
+    }
   }
   const admin = randomUUID(),
     operators = Array.from({ length: 5 }, randomUUID);
@@ -612,6 +616,68 @@ try {
     assert.ok(
       (await as(admin, "select public.export_snapshot() s"))[0].s.participants
         .length,
+    );
+  });
+  await test("Alta de participante con saldo exacto y auditoría", async () => {
+    await seed();
+    await as(admin, "select public.admin_participant(null,$1,$2,$3,$4,null)", [
+      "Nueva persona sintética",
+      "Grandes",
+      "12.345",
+      "Registro inicial",
+    ]);
+    const created = await pool.query(
+      "select balance::text from public.participants where name=$1",
+      ["Nueva persona sintética"],
+    );
+    assert.equal(created.rows[0].balance, "12.345");
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int n from public.audit_log where reason='Registro inicial' and table_name='participants'",
+        )
+      ).rows[0].n,
+      1,
+    );
+  });
+  await test("Operador y anónimo no dan de alta participantes", async () => {
+    await seed();
+    const sql =
+      "select public.admin_participant(null,'Persona sintética','Grandes','4','Registro inicial',null)";
+    await assert.rejects(() => as(operators[0], sql), /autorización/);
+    await assert.rejects(() => anonymous(sql), /permission denied/);
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.participants"))
+        .rows[0].n,
+      6,
+    );
+  });
+  await test("Alta inválida no cambia participantes ni auditoría", async () => {
+    await seed();
+    const before = (
+      await pool.query("select count(*)::int n from public.audit_log")
+    ).rows[0].n;
+    for (const [name, group, balance] of [
+      ["", "Grandes", "1"],
+      ["X", "Desconocido", "1"],
+      ["X", "Grandes", "-1"],
+    ])
+      await assert.rejects(() =>
+        as(
+          admin,
+          "select public.admin_participant(null,$1,$2,$3,'Registro inicial',null)",
+          [name, group, balance],
+        ),
+      );
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.participants"))
+        .rows[0].n,
+      6,
+    );
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.audit_log")).rows[0]
+        .n,
+      before,
     );
   });
   await test("Ajuste de horas auditado y formulario obsoleto rechazado", async () => {

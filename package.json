@@ -13,6 +13,7 @@
     "inspect:excel": "node scripts/inspect-excel.mjs",
     "supabase": "supabase",
     "accounts": "node scripts/accounts.mjs",
+    "access:devices": "node scripts/prepare-device-access.mjs",
     "check": "npm run build && npm test && npm run test:db && npm run test:e2e",
     "import:initial": "tsx scripts/import-initial.ts"
   },

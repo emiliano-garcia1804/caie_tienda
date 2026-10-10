@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-10T02:49:10.359Z",
+  "executed_at": "2026-10-10T03:05:28.422Z",
   "engine": "postgres (PostgreSQL) 15.4; auth.uid shim local, sin servicio Supabase Auth",
   "results": [
     {
@@ -112,6 +112,18 @@
     },
     {
       "name": "RPC administrativas y exportación restringidas",
+      "status": "PASS"
+    },
+    {
+      "name": "Alta de participante con saldo exacto y auditoría",
+      "status": "PASS"
+    },
+    {
+      "name": "Operador y anónimo no dan de alta participantes",
+      "status": "PASS"
+    },
+    {
+      "name": "Alta inválida no cambia participantes ni auditoría",
       "status": "PASS"
     },
     {

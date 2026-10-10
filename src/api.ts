@@ -1,11 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Snapshot } from "./domain";
+export const simpleAccess = import.meta.env.VITE_SIMPLE_ACCESS !== "false";
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
-      persistSession: false,
+      persistSession: simpleAccess,
+      storageKey: "caie-tienda-session",
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },

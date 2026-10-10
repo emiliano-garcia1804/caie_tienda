@@ -6,7 +6,7 @@ Aplicación React/TypeScript para intercambiar horas educativas por artículos. 
 
 ## Estado de entrega
 
-Implementados el flujo móvil completo, administración, compras y anulaciones atómicas, ajustes auditados, eventos, importación inicial protegida y exportación Excel. Consulta `docs/TEST_REPORT.md` y `docs/db-test-results.json` para conocer qué se ejecutó y qué sigue pendiente. **No publicar ni importar datos reales sin autorización expresa.** El esquema remoto ya fue aplicado con autorización; también se autorizó y ejecutó la importación real, conciliada individualmente. Existe un administrador y un evento activo para el 10 de octubre de 2026. GitHub Pages no se ha publicado. El alcance de la migración está descrito en `docs/schema-review.md`.
+Implementados el flujo móvil completo, administración, compras y anulaciones atómicas, ajustes auditados, eventos, importación inicial protegida y exportación Excel. Consulta `docs/TEST_REPORT.md` y `docs/db-test-results.json` para conocer qué se ejecutó y qué sigue pendiente. **No publicar ni importar datos reales sin autorización expresa.** El esquema remoto ya fue aplicado con autorización; también se autorizó y ejecutó la importación real, conciliada individualmente. Existe un administrador y un evento activo para el 10 de octubre de 2026. GitHub Pages está publicado en `https://emiliano-garcia1804.github.io/caie_tienda/`. Esta primera etapa usa acceso directo por enlaces privados de dispositivo, sin formularios de correo o contraseña. El alcance de la migración está descrito en `docs/schema-review.md`.
 
 ## Instalación y ejecución
 
@@ -21,7 +21,7 @@ npm run dev
 
 Abrir `http://127.0.0.1:5173/caie-tienda/`. `.env.local` ya está configurado en la instalación actual y excluido de Git. URL y publishable key son públicas. Nunca añadir contraseñas PostgreSQL, secret keys ni claves service_role a variables `VITE_*`.
 
-La aplicación requiere una cuenta real autorizada de Supabase; la migración ya está aplicada en esta instalación. No hay acceso público, cuentas de demostración ni datos ficticios en la aplicación. Las pruebas interceptan HTTP solo dentro del navegador de Playwright.
+La aplicación comparte los registros de Supabase entre los cinco teléfonos mediante enlaces privados; cada navegador recuerda el acceso. No se introduce correo ni contraseña en esta etapa. Las políticas de acceso siguen aplicándose internamente. No hay datos ficticios en la aplicación; las pruebas interceptan HTTP únicamente en Playwright.
 
 ## Arquitectura y estructura
 
@@ -76,7 +76,7 @@ No activar registros públicos ni usuarios anónimos. La configuración solo mod
 
 ## Acceso sencillo de CAIE
 
-Por la simplificación solicitada, los cinco teléfonos pueden utilizar la cuenta CAIE ya preparada. No se requiere una lista de voluntarios ni gestionar roles desde la interfaz. Abrir el enlace privado de primer acceso y elegir contraseña en Mi cuenta; consultar `docs/ACCESO-SENCILLO.md`. La auditoría identifica esa cuenta compartida y no a cada persona que la usa. La autenticación se mantiene para proteger los datos aunque alguien conozca la URL pública.
+Por la simplificación solicitada, los cinco teléfonos pueden utilizar la cuenta CAIE ya preparada. No se requiere una lista de voluntarios ni gestionar roles desde la interfaz. Abrir una vez el enlace privado asignado a cada teléfono; el navegador conserva el acceso sin pedir correo ni contraseña. Los cinco enlaces están en `C:/Users/emili/Documents/CAIE-privado/accesos-telefonos/abrir-tienda.html`; consultar `docs/ACCESO-SENCILLO.md`. La auditoría identifica esa cuenta compartida y no a cada persona que la usa. La autenticación se mantiene para proteger los datos aunque alguien conozca la URL pública.
 
 ### Procedimiento opcional de cuentas separadas
 
@@ -141,7 +141,7 @@ El repositorio remoto existente se llama `caie_tienda`, mientras el directorio d
 5. Subir los archivos revisados al repositorio. No se ha efectuado push ni publicación automáticamente.
 6. Ejecutar manualmente el workflow de publicación y escribir `PUBLICAR`. No se activa con un push normal.
 
-Build local: `npm run build`; vista previa: `npm run preview`, abrir `http://127.0.0.1:4173/caie-tienda/`. El build incluye únicamente frontend y logotipo. ExcelJS se carga bajo demanda; su bundle es grande pero no forma parte de la carga inicial. No hay service worker, caché persistente de datos ni compras offline. La sesión Auth permanece en memoria para evitar persistencia innecesaria en teléfonos compartidos; al recargar se vuelve a iniciar sesión. Seleccionar la inicial del operador abre Mi cuenta para actualizar la contraseña. Un intento con respuesta incierta bloquea la navegación interna hasta recuperarlo; conserva el contenido y saldo originales para su reintento.
+Build local: `npm run build`; vista previa: `npm run preview`, abrir `http://127.0.0.1:4173/caie-tienda/`. El build incluye únicamente frontend y logotipo. ExcelJS se carga bajo demanda; su bundle es grande pero no forma parte de la carga inicial. No hay service worker, caché persistente de datos ni compras offline. En esta primera etapa el navegador conserva la sesión del enlace privado; al recargar se mantiene el acceso. No se muestran formularios de usuarios ni contraseñas. La sección Acceso de este teléfono permite cerrarlo sin cerrar los accesos de los demás dispositivos. El modo anterior puede restaurarse con `VITE_SIMPLE_ACCESS=false`. Un intento con respuesta incierta bloquea la navegación interna hasta recuperarlo; conserva el contenido y saldo originales para su reintento.
 
 ## Respaldos, restauración y operación
 

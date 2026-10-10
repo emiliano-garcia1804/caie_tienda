@@ -28,7 +28,7 @@ import {
   Download,
   HeartHandshake,
 } from "lucide-react";
-import { supabase, rpc, snapshot } from "./api";
+import { supabase, rpc, snapshot, simpleAccess } from "./api";
 import {
   calculateCart,
   categories,
@@ -114,7 +114,7 @@ function Status({ purchased }: { purchased: boolean }) {
     </span>
   );
 }
-function Login() {
+function Login({ accessError }: { accessError?: string | null }) {
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
@@ -135,6 +135,31 @@ function Login() {
       setBusy(false);
     }
   }
+  if (simpleAccess)
+    return (
+      <main className="login">
+        <section className="login-story">
+          <img src={logo} alt="Logotipo oficial de CAIE" />
+          <span className="eyebrow">BIENVENIDOS A CAIE TIENDA</span>
+          <h1>Una tienda para nuestra comunidad.</h1>
+          <p>Registra compras y descarga el Excel de forma sencilla.</p>
+        </section>
+        <section className="login-form">
+          <Brand />
+          <h2>Abre el enlace de tu teléfono</h2>
+          <p>
+            Usa el enlace privado que te compartió la persona responsable de
+            CAIE. Solo necesitas abrirlo una vez; después puedes volver a esta
+            página directamente.
+          </p>
+          {accessError && <Alert>{accessError}</Alert>}
+          <small>
+            Si borraste los datos del navegador o cerraste el acceso, solicita
+            un enlace nuevo.
+          </small>
+        </section>
+      </main>
+    );
   return (
     <main className="login">
       <section className="login-story">
@@ -183,9 +208,11 @@ function Login() {
     </main>
   );
 }
-export default function App() {
+export default function App({ accessError }: { accessError?: string | null }) {
   const [auth, setAuth] = useState<"loading" | "out" | "in">("loading"),
-    [online, setOnline] = useState(navigator.onLine);
+    [online, setOnline] = useState(navigator.onLine),
+    [exporting, setExporting] = useState(false),
+    [exportError, setExportError] = useState("");
   const client = useQueryClient();
   useEffect(() => {
     let live = true;
@@ -232,7 +259,7 @@ export default function App() {
   }, [auth, client]);
   if (auth === "loading")
     return <div className="loading">Preparando CAIE Tienda…</div>;
-  if (auth === "out") return <Login />;
+  if (auth === "out") return <Login accessError={accessError} />;
   if (!query.data)
     return (
       <main className="standalone">
@@ -241,8 +268,10 @@ export default function App() {
           <>
             <Alert>No pudimos cargar la tienda: {query.error.message}</Alert>
             <button onClick={() => query.refetch()}>Reintentar</button>
-            <button onClick={() => supabase.auth.signOut()}>
-              Cerrar sesión
+            <button onClick={() => supabase.auth.signOut({ scope: "local" })}>
+              {simpleAccess
+                ? "Cerrar acceso de este teléfono"
+                : "Cerrar sesión"}
             </button>
           </>
         ) : (
@@ -254,30 +283,57 @@ export default function App() {
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: ["snapshot"] });
   };
+  const download = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      downloadExcel(
+        await exportWorkbook(await rpc<Snapshot>("export_snapshot")),
+      );
+    } catch (e) {
+      setExportError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <div className="app">
       <header>
         <Brand />
-        <div className="operator">
-          <Link to="/account" aria-label="Mi cuenta" className="avatar">
-            {data.profile.display_name.charAt(0)}
-          </Link>
-          <span>
-            {data.profile.display_name}
-            <small>
-              {data.profile.role === "admin"
-                ? "Gestionar tienda"
-                : "Voluntariado"}
-            </small>
-          </span>
-          <button
-            className="icon-button"
-            aria-label="Cerrar sesión"
-            onClick={() => supabase.auth.signOut()}
-          >
-            <LogOut size={19} />
-          </button>
-        </div>
+        {simpleAccess ? (
+          <div className="operator">
+            <button
+              className="secondary"
+              disabled={exporting}
+              onClick={download}
+              aria-label="Descargar Excel actualizado"
+            >
+              <Download size={19} />
+              <span>Excel</span>
+            </button>
+          </div>
+        ) : (
+          <div className="operator">
+            <Link to="/account" aria-label="Mi cuenta" className="avatar">
+              {data.profile.display_name.charAt(0)}
+            </Link>
+            <span>
+              {data.profile.display_name}
+              <small>
+                {data.profile.role === "admin"
+                  ? "Gestionar tienda"
+                  : "Voluntariado"}
+              </small>
+            </span>
+            <button
+              className="icon-button"
+              aria-label="Cerrar sesión"
+              onClick={() => supabase.auth.signOut({ scope: "local" })}
+            >
+              <LogOut size={19} />
+            </button>
+          </div>
+        )}
       </header>
       <nav className="navigation">
         <Link to="/">
@@ -304,6 +360,7 @@ export default function App() {
         )}
       </nav>
       <main className="content">
+        {exportError && <Alert>{exportError}</Alert>}
         {!online && (
           <Alert>
             Sin conexión. Puedes revisar esta pantalla; las compras requieren
@@ -324,7 +381,10 @@ export default function App() {
             path="/buy/:id"
             element={<Checkout data={data} refresh={refresh} online={online} />}
           />
-          <Route path="/account" element={<Account />} />
+          <Route
+            path="/account"
+            element={simpleAccess ? <Navigate to="/" replace /> : <Account />}
+          />
           <Route path="/inventory" element={<Inventory data={data} />} />
           <Route
             path="/history"
@@ -1204,8 +1264,13 @@ function Admin({
       setBusy(false);
     }
   }
-  const action = (name: string, params: Record<string, unknown>) => {
-    void act(name, params).catch(() => {});
+  const action = async (name: string, params: Record<string, unknown>) => {
+    try {
+      await act(name, params);
+      return true;
+    } catch {
+      return false;
+    }
   };
   async function download() {
     setBusy(true);
@@ -1263,6 +1328,22 @@ function Admin({
         </div>
       )}
       {error && <Alert>{error}</Alert>}
+      {simpleAccess && (
+        <details className="panel">
+          <summary>Acceso de este teléfono</summary>
+          <p>
+            El acceso queda guardado en este navegador. Al cerrarlo necesitarás
+            un enlace nuevo para volver a entrar.
+          </p>
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => supabase.auth.signOut({ scope: "local" })}
+          >
+            Cerrar acceso de este teléfono
+          </button>
+        </details>
+      )}
       {tab === "Participantes" && (
         <ParticipantAdmin data={data} action={action} busy={busy} />
       )}{" "}
@@ -1304,13 +1385,13 @@ function Admin({
 }
 type AdminProps = {
   data: Snapshot;
-  action: (name: string, params: Record<string, unknown>) => void;
+  action: (name: string, params: Record<string, unknown>) => Promise<boolean>;
   busy: boolean;
 };
 function ParticipantAdmin({ data, action, busy }: AdminProps) {
   const [search, setSearch] = useState(""),
     [group, setGroup] = useState(""),
-    [person, setPerson] = useState<Participant | null>(null),
+    [person, setPerson] = useState<Participant | null | undefined>(),
     [name, setName] = useState(""),
     [newGroup, setNewGroup] = useState(""),
     [balance, setBalance] = useState(""),
@@ -1318,6 +1399,19 @@ function ParticipantAdmin({ data, action, busy }: AdminProps) {
   return (
     <div className="admin-layout">
       <section>
+        <button
+          className="secondary"
+          onClick={() => {
+            setPerson(null);
+            setName("");
+            setNewGroup(groups[0]);
+            setBalance("");
+            setReason("Registro inicial");
+          }}
+        >
+          <Plus size={18} />
+          Agregar participante
+        </button>
         <SearchBox value={search} onChange={setSearch} />
         <label>
           Grupo
@@ -1355,22 +1449,24 @@ function ParticipantAdmin({ data, action, busy }: AdminProps) {
             ))}
         </div>
       </section>
-      {person ? (
+      {person !== undefined ? (
         <form
           className="panel"
           onSubmit={(e) => {
             e.preventDefault();
-            action("admin_participant", {
-              p_id: person.id,
+            void action("admin_participant", {
+              p_id: person?.id ?? null,
               p_name: name,
               p_group: newGroup,
               p_balance: balance,
-              p_expected_balance: person.balance,
+              p_expected_balance: person?.balance ?? null,
               p_reason: reason,
+            }).then((saved) => {
+              if (saved) setPerson(undefined);
             });
           }}
         >
-          <h2>Editar participante</h2>
+          <h2>{person ? "Editar participante" : "Nuevo participante"}</h2>
           <label>
             Nombre
             <input
@@ -1382,6 +1478,7 @@ function ParticipantAdmin({ data, action, busy }: AdminProps) {
           <label>
             Grupo
             <select
+              aria-label="Grupo del participante"
               value={newGroup}
               onChange={(e) => setNewGroup(e.target.value)}
             >
@@ -1401,17 +1498,19 @@ function ParticipantAdmin({ data, action, busy }: AdminProps) {
               onChange={(e) => setBalance(e.target.value)}
             />
           </label>
-          <label>
-            Motivo del ajuste
-            <textarea
-              required
-              minLength={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </label>
+          {person && (
+            <label>
+              Motivo del ajuste
+              <textarea
+                required
+                minLength={3}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+          )}
           <button className="primary" disabled={busy}>
-            Guardar ajuste
+            {person ? "Guardar ajuste" : "Guardar participante"}
           </button>
           <Link className="secondary" to="/history">
             Consultar compras
@@ -1443,7 +1542,7 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
     setPrice(p?.price ?? "");
     setStock(p?.stock == null ? "" : String(p.stock));
     setActive(p?.active ?? true);
-    setReason("");
+    setReason(p ? "" : "Registro inicial");
   };
   return (
     <div className="admin-layout">
@@ -1512,7 +1611,11 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
           </label>
           <label>
             Categoría
-            <select value={cat} onChange={(e) => setCat(e.target.value)}>
+            <select
+              aria-label="Categoría del producto"
+              value={cat}
+              onChange={(e) => setCat(e.target.value)}
+            >
               {categories.map((c) => (
                 <option key={c}>{c}</option>
               ))}
@@ -1548,15 +1651,17 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
             />
             Producto activo
           </label>
-          <label>
-            Motivo
-            <textarea
-              minLength={3}
-              required
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </label>
+          {product && (
+            <label>
+              Motivo
+              <textarea
+                minLength={3}
+                required
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+          )}
           <button className="primary" disabled={busy}>
             Guardar producto
           </button>

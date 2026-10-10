@@ -4,6 +4,14 @@
 
 Las pruebas utilizan exclusivamente datos sintéticos. No se ejecutaron compras de prueba en Supabase remoto. La importación definitiva de personas reales se realizó por separado, con autorización expresa y conciliación. Los resultados SQL detallados y la fecha de ejecución se conservan en `db-test-results.json`.
 
+## Primera etapa: acceso directo compartido
+
+Validación de la versión sin formularios de correo ni contraseña: build PASS, 20 pruebas unitarias PASS, 37 pruebas de PostgreSQL real PASS y 30 pruebas de navegador PASS. Se verificaron apertura por enlace privado, retiro de tokens de la URL, persistencia al recargar, cierre limitado a un dispositivo, alta de participantes/productos y descarga del Excel reabierto con sus registros. Los errores encontrados al probar la etiqueta del selector de grupo se corrigieron antes de la ejecución final.
+
+La migración adicional solo amplía `admin_participant` para aceptar un ID nulo al crear un participante. Se comprobaron saldo decimal exacto, auditoría, rechazo de operador/anónimo y rollback de altas inválidas. Todas las pruebas anteriores de atomicidad, saldos, inventario, cinco operadores, idempotencia, anulaciones y RLS siguen ejecutándose. No se hicieron compras ni altas de prueba sobre datos reales.
+
+El resumen que sigue documenta la entrega anterior y sus verificaciones originales.
+
 ## Resumen ejecutado
 
 | Suite                            | Resultado         | Evidencia y límite                                                                                                         |
