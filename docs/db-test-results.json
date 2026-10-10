@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-10T03:05:28.422Z",
+  "executed_at": "2026-10-10T03:28:14.477Z",
   "engine": "postgres (PostgreSQL) 15.4; auth.uid shim local, sin servicio Supabase Auth",
   "results": [
     {
@@ -144,6 +144,38 @@
     },
     {
       "name": "Exportación snapshot consistente durante cinco compras",
+      "status": "PASS"
+    },
+    {
+      "name": "Página pública obtiene registros y exportación sin sesión",
+      "status": "PASS"
+    },
+    {
+      "name": "Acceso público añade participantes y productos con saldo exacto y auditoría",
+      "status": "PASS"
+    },
+    {
+      "name": "Compra pública conserva atomicidad, idempotencia y anulación exacta",
+      "status": "PASS"
+    },
+    {
+      "name": "Cinco teléfonos públicos concurrentes conservan inventario y saldos",
+      "status": "PASS"
+    },
+    {
+      "name": "Operación pública inválida hace rollback sin alterar saldos, existencias ni auditoría",
+      "status": "PASS"
+    },
+    {
+      "name": "Acceso público conserva RLS y no expone configuración ni gestión de cuentas",
+      "status": "PASS"
+    },
+    {
+      "name": "Se puede cerrar el acceso público desde configuración privada",
+      "status": "PASS"
+    },
+    {
+      "name": "Gestión pública de eventos mantiene exclusividad e importación no reemplaza datos",
       "status": "PASS"
     },
     {

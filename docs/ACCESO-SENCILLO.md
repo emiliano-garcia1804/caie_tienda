@@ -1,23 +1,24 @@
-﻿# Primera etapa: acceso directo en cinco teléfonos
+﻿# Primera etapa: abrir y usar la tienda
 
-La tienda compartida abre sin introducir correo ni contraseña. Cada teléfono utiliza un enlace privado una vez y conserva su acceso en ese navegador. Los cinco teléfonos consultan los mismos registros de Supabase; las compras, los saldos y el inventario mantienen sus transacciones y controles de concurrencia.
+Abrir **https://emiliano-garcia1804.github.io/caie_tienda/** en cualquiera de los cinco teléfonos. No se necesitan correo, contraseña, sesión guardada ni enlaces privados. Todos consultan y modifican la misma tienda.
 
-1. Abrir `C:\Users\emili\Documents\CAIE-privado\accesos-telefonos\abrir-tienda.html` en un navegador.
-2. Utilizar un enlace distinto para cada teléfono. Los archivos `telefono-1.txt` a `telefono-5.txt` contienen los enlaces para compartir por un canal privado con las personas autorizadas.
-3. Después del primer acceso, guardar la página normal como favorito: `https://emiliano-garcia1804.github.io/caie_tienda/`.
-4. Para añadir participantes o productos, abrir **Gestionar tienda** y pulsar **Agregar participante** o **Agregar producto**. Para registrar compras, abrir **Nueva compra**.
-5. Pulsar **Excel** en el encabezado para descargar los registros actualizados. La descarga incluye Horas, Inventario y Movimientos de una misma lectura de la base.
+1. Para añadir participantes o productos, abrir **Gestionar tienda** y pulsar **Agregar participante** o **Agregar producto**.
+2. Para registrar compras, abrir **Nueva compra**, elegir grupo y participante, seleccionar artículos y confirmar.
+3. Pulsar el botón de descarga del encabezado para obtener el Excel actualizado con Horas, Inventario y Movimientos.
+4. Guardar la URL normal como favorito. La tienda vuelve a abrir también después de borrar los datos del navegador.
 
-No es necesario iniciar un servidor local, elegir contraseñas ni gestionar usuarios desde la interfaz. Si se borran los datos del navegador, se usa navegación privada o se cierra el acceso, será necesario abrir un enlace nuevo para ese teléfono. **Gestionar tienda → Acceso de este teléfono** permite cerrarlo sin desconectar los demás teléfonos.
+El propietario autorizó expresamente que cualquier visitante de la página pueda consultar y modificar los recursos durante esta etapa. Las operaciones públicas se registran como **Acceso público**; no identifican a una persona ni a un teléfono. Los datos se actualizan al volver a la ventana, reconectar o cada 30 segundos.
 
-El responsable puede preparar enlaces nuevos mediante:
+## Implementación y reversión posterior
 
-```powershell
-npm run access:devices -- CORREO_ADMINISTRADOR_EXISTENTE 5
+`public.open_store` permite únicamente las operaciones existentes de la aplicación: snapshot, exportación, compras, anulaciones, participantes, productos, eventos e importación inicial. Reutiliza sus transacciones, validaciones, bloqueos, idempotencia y auditoría. La importación sigue sin poder reemplazar los registros existentes. No expone gestión de cuentas, SQL arbitrario ni escritura directa en las tablas.
+
+Una identidad técnica sin correo, contraseña ni credenciales de inicio de sesión etiqueta los movimientos públicos. RLS y los permisos de los endpoints anteriores permanecen; las pruebas originales siguen verificándolos. El navegador usa solamente la URL y la publishable key de Supabase, nunca claves administrativas ni tokens compartidos.
+
+Para cerrar este acceso en una etapa posterior, el responsable puede ejecutar en una conexión administrativa:
+
+```sql
+update caie_private.store_access set enabled = false where singleton;
 ```
 
-Este comando usa la CLI previamente autorizada, comprueba que el administrador existe y está activo, y crea sesiones independientes de la misma cuenta. No crea usuarios, cambia contraseñas, modifica perfiles ni añade registros de aplicación. Verifica el acceso de las sesiones con lecturas de `app_snapshot`; guarda los enlaces fuera del repositorio y no imprime tokens. Para preparar un solo acceso, usar `1` como último argumento.
-
-Supabase Auth y las políticas RLS permanecen como mecanismo interno de protección. La URL pública, por sí sola, no da acceso a los registros. Los enlaces privados son credenciales y no deben subirse a GitHub, colocarse en `public/` ni incluirse en el build. La auditoría sigue atribuida a la cuenta compartida y no identifica a la persona física que utiliza cada teléfono.
-
-El modo de correo y contraseña queda disponible para una etapa posterior mediante `VITE_SIMPLE_ACCESS=false`; el valor predeterminado de esta etapa es acceso directo. La aplicación consume las credenciales del fragmento privado antes de iniciar HashRouter y las retira de la dirección y del historial.
+La configuración privada no se puede modificar desde la página. Volver al acceso por cuentas requiere además publicar con `VITE_PUBLIC_ACCESS=false` y `VITE_SIMPLE_ACCESS=false`. Los enlaces privados preparados anteriormente ya no son necesarios en esta etapa.

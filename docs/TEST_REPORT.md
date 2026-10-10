@@ -4,7 +4,15 @@
 
 Las pruebas utilizan exclusivamente datos sintéticos. No se ejecutaron compras de prueba en Supabase remoto. La importación definitiva de personas reales se realizó por separado, con autorización expresa y conciliación. Los resultados SQL detallados y la fecha de ejecución se conservan en `db-test-results.json`.
 
-## Primera etapa: acceso directo compartido
+## Primera etapa actual: acceso público autorizado
+
+La página abre la tienda sin cuentas, contraseñas, enlaces privados ni solicitudes a Supabase Auth. La nueva RPC pública reutiliza las operaciones originales y registra sus movimientos con una identidad técnica "Acceso público" sin credenciales. Se mantienen las comprobaciones anteriores de RLS, atomicidad, saldos, inventario, cinco operadores, idempotencia y anulaciones; se añaden ocho escenarios SQL del acceso público, incluidas cinco conexiones simultáneas, rollback y cierre desde configuración privada. La migración no modifica participantes, productos, saldos ni compras existentes.
+
+Validación local: build PASS, 20 pruebas unitarias PASS, 45 pruebas de PostgreSQL real PASS y 33 pruebas de navegador PASS. Playwright comprueba apertura desde la URL normal sin solicitudes de autenticación, recarga sin sesión guardada, limpieza de enlaces antiguos, altas de participantes/productos y descarga/reapertura del Excel en Android, iPhone simulado y 320 px. Las operaciones de prueba usan exclusivamente el PostgreSQL aislado y las respuestas sintéticas de navegador.
+
+La migración pública se aplicó al proyecto vinculado con la autorización expresa del propietario. Se verificaron únicamente lecturas reales de `app_snapshot` y `export_snapshot` mediante la publishable key sin sesión: ambas PASS; 182 participantes, 42 productos, cero compras y un evento activo. No se ejecutaron altas ni compras de prueba en Supabase remoto.
+
+## Entrega anterior: acceso directo por dispositivo
 
 Validación de la versión sin formularios de correo ni contraseña: build PASS, 20 pruebas unitarias PASS, 37 pruebas de PostgreSQL real PASS y 30 pruebas de navegador PASS. Se verificaron apertura por enlace privado, retiro de tokens de la URL, persistencia al recargar, cierre limitado a un dispositivo, alta de participantes/productos y descarga del Excel reabierto con sus registros. Los errores encontrados al probar la etiqueta del selector de grupo se corrigieron antes de la ejecución final.
 

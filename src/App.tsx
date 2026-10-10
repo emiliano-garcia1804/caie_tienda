@@ -28,7 +28,7 @@ import {
   Download,
   HeartHandshake,
 } from "lucide-react";
-import { supabase, rpc, snapshot, simpleAccess } from "./api";
+import { supabase, rpc, snapshot, simpleAccess, publicAccess } from "./api";
 import {
   calculateCart,
   categories,
@@ -209,12 +209,15 @@ function Login({ accessError }: { accessError?: string | null }) {
   );
 }
 export default function App({ accessError }: { accessError?: string | null }) {
-  const [auth, setAuth] = useState<"loading" | "out" | "in">("loading"),
+  const [auth, setAuth] = useState<"loading" | "out" | "in">(
+      publicAccess ? "in" : "loading",
+    ),
     [online, setOnline] = useState(navigator.onLine),
     [exporting, setExporting] = useState(false),
     [exportError, setExportError] = useState("");
   const client = useQueryClient();
   useEffect(() => {
+    if (publicAccess) return;
     let live = true;
     supabase.auth.getSession().then(({ data }) => {
       if (live) setAuth(data.session ? "in" : "out");
@@ -246,7 +249,7 @@ export default function App({ accessError }: { accessError?: string | null }) {
     enabled: auth === "in",
   });
   useEffect(() => {
-    if (auth !== "in") return;
+    if (publicAccess || auth !== "in") return;
     const channel = supabase
       .channel("tienda")
       .on("postgres_changes", { event: "*", schema: "public" }, () =>
@@ -268,11 +271,13 @@ export default function App({ accessError }: { accessError?: string | null }) {
           <>
             <Alert>No pudimos cargar la tienda: {query.error.message}</Alert>
             <button onClick={() => query.refetch()}>Reintentar</button>
-            <button onClick={() => supabase.auth.signOut({ scope: "local" })}>
-              {simpleAccess
-                ? "Cerrar acceso de este teléfono"
-                : "Cerrar sesión"}
-            </button>
+            {!publicAccess && (
+              <button onClick={() => supabase.auth.signOut({ scope: "local" })}>
+                {simpleAccess
+                  ? "Cerrar acceso de este teléfono"
+                  : "Cerrar sesión"}
+              </button>
+            )}
           </>
         ) : (
           <p role="status">Cargando la tienda…</p>
@@ -1328,7 +1333,7 @@ function Admin({
         </div>
       )}
       {error && <Alert>{error}</Alert>}
-      {simpleAccess && (
+      {simpleAccess && !publicAccess && (
         <details className="panel">
           <summary>Acceso de este teléfono</summary>
           <p>

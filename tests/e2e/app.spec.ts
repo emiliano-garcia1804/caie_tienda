@@ -114,8 +114,12 @@ async function setup(
   await page.route(
     "https://krjyplolmaoflcknhlpt.supabase.co/**",
     async (route) => {
-      const url = route.request().url();
-      const body = route.request().postDataJSON();
+      let url = route.request().url();
+      let body = route.request().postDataJSON();
+      if (url.includes("/rpc/open_store")) {
+        url = url.replace("open_store", body.p_operation);
+        body = body.p_params;
+      }
       const json = (value: unknown, status = 200) =>
         route.fulfill({
           status,
@@ -243,8 +247,7 @@ async function setup(
       return json({});
     },
   );
-  const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: user, exp: Math.floor(Date.now() / 1000) + 3600, aud: "authenticated", role: "authenticated" })).toString("base64url")}.test`;
-  await page.goto(`#caie_access_token=${token}&caie_refresh_token=synthetic`);
+  await page.goto("");
   await expect(
     page.getByRole("heading", { name: "Bienvenido a la tienda" }),
   ).toBeVisible();
@@ -412,7 +415,7 @@ test("Respuesta perdida conserva identificador y recupera única compra", async 
   expect(data.purchases).toHaveLength(1);
   expect(data.participants[0].balance).toBe("10");
 });
-test("Administración, exportación XLSX, filtros y cierre de sesión", async ({
+test("Administración, exportación XLSX y filtros sin controles de acceso", async ({
   page,
 }) => {
   await setup(page);
@@ -437,19 +440,14 @@ test("Administración, exportación XLSX, filtros y cierre de sesión", async ({
   await page.getByRole("button", { name: /Cobija de prueba/ }).click();
   await expect(page.getByLabel("Precio en horas")).toHaveValue("2");
   await noOverflow(page);
-  await page.getByText("Acceso de este teléfono", { exact: true }).click();
-  const logout = page.waitForRequest((r) =>
-    r.url().includes("/auth/v1/logout"),
-  );
-  await page
-    .getByRole("button", { name: "Cerrar acceso de este teléfono" })
-    .click();
-  expect((await logout).url()).toContain("scope=local");
   await expect(
-    page.getByRole("heading", { name: "Abre el enlace de tu teléfono" }),
-  ).toBeVisible();
+    page.getByText("Acceso de este teléfono", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Cerrar (acceso|sesión)/ }),
+  ).toHaveCount(0);
 });
-test("Acceso directo persiste al recargar sin correo, contraseña ni tokens en URL", async ({
+test("Acceso público permite recargar sin correo, contraseña ni sesión guardada", async ({
   page,
 }) => {
   await setup(page);
@@ -470,6 +468,9 @@ test("Acceso directo persiste al recargar sin correo, contraseña ni tokens en U
     .click();
   expect((await download).suggestedFilename()).toMatch(/CAIE-Tienda.*\.xlsx/);
   await noOverflow(page);
+  expect(
+    await page.evaluate(() => localStorage.getItem("caie-tienda-session")),
+  ).toBeNull();
 });
 
 test("Añadir participante, conservarlo al recargar y descargarlo en Excel", async ({
@@ -553,22 +554,42 @@ test("Añadir participante, conservarlo al recargar y descargarlo en Excel", asy
   await noOverflow(page);
 });
 
-test("URL pública no muestra registros ni pide correo o contraseña", async ({
+test("URL pública abre los registros sin solicitudes de autenticación", async ({
   page,
 }) => {
   const requests: string[] = [];
+  const authRequests: string[] = [];
   page.on("request", (r) => {
     if (r.url().includes("/rpc/")) requests.push(r.url());
+    if (r.url().includes("/auth/v1/")) authRequests.push(r.url());
   });
-  await page.goto("");
+  await setup(page);
   await expect(
-    page.getByRole("heading", { name: "Abre el enlace de tu teléfono" }),
+    page.getByRole("heading", { name: "Bienvenido a la tienda" }),
   ).toBeVisible();
   await expect(
     page.locator('input[type="email"], input[type="password"]'),
   ).toHaveCount(0);
-  expect(requests).toEqual([]);
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.every((url) => url.includes("/rpc/open_store"))).toBe(true);
+  expect(authRequests).toEqual([]);
   await noOverflow(page);
+});
+
+test("Un enlace antiguo se limpia y abre la tienda sin usar sus credenciales", async ({
+  page,
+}) => {
+  const authRequests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/auth/v1/")) authRequests.push(r.url());
+  });
+  await setup(page);
+  await page.goto("#caie_access_token=old&caie_refresh_token=old");
+  await expect(
+    page.getByRole("heading", { name: "Bienvenido a la tienda" }),
+  ).toBeVisible();
+  expect(page.url()).not.toContain("token");
+  expect(authRequests).toEqual([]);
 });
 test("Catálogo búsqueda y categorías, conexión y objetivos táctiles", async ({
   page,

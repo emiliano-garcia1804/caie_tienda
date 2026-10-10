@@ -27,6 +27,7 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
+          VITE_PUBLIC_ACCESS: "true"
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}

@@ -4,7 +4,7 @@ import { createHashRouter, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./styles.css";
-import { supabase } from "./api";
+import { supabase, publicAccess } from "./api";
 import { restoreDeviceAccess } from "./device-access";
 const client = new QueryClient({
   defaultOptions: {
@@ -18,7 +18,19 @@ const client = new QueryClient({
   },
 });
 async function start() {
-  const accessError = await restoreDeviceAccess(supabase.auth, window);
+  // Public access needs no saved credentials. Clean any old private link.
+  if (
+    publicAccess &&
+    /caie_(?:access|refresh)_token=/.test(window.location.hash)
+  )
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.search,
+    );
+  const accessError = publicAccess
+    ? null
+    : await restoreDeviceAccess(supabase.auth, window);
   const router = createHashRouter([
     { path: "*", element: <App accessError={accessError} /> },
   ]);

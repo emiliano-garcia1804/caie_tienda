@@ -6,7 +6,7 @@ Aplicación React/TypeScript para intercambiar horas educativas por artículos. 
 
 ## Estado de entrega
 
-Implementados el flujo móvil completo, administración, compras y anulaciones atómicas, ajustes auditados, eventos, importación inicial protegida y exportación Excel. Consulta `docs/TEST_REPORT.md` y `docs/db-test-results.json` para conocer qué se ejecutó y qué sigue pendiente. **No publicar ni importar datos reales sin autorización expresa.** El esquema remoto ya fue aplicado con autorización; también se autorizó y ejecutó la importación real, conciliada individualmente. Existe un administrador y un evento activo para el 10 de octubre de 2026. GitHub Pages está publicado en `https://emiliano-garcia1804.github.io/caie_tienda/`. Esta primera etapa usa acceso directo por enlaces privados de dispositivo, sin formularios de correo o contraseña. El alcance de la migración está descrito en `docs/schema-review.md`.
+Implementados el flujo móvil completo, administración, compras y anulaciones atómicas, ajustes auditados, eventos, importación inicial protegida y exportación Excel. Consulta `docs/TEST_REPORT.md` y `docs/db-test-results.json` para conocer qué se ejecutó y qué sigue pendiente. El esquema remoto y la importación real ya fueron aplicados con autorización y conciliación. Existe un evento activo para el 10 de octubre de 2026. GitHub Pages está publicado en `https://emiliano-garcia1804.github.io/caie_tienda/`. Esta primera etapa usa acceso público expresamente autorizado, sin cuentas, contraseñas ni enlaces privados. El alcance del esquema original está descrito en `docs/schema-review.md` y el acceso actual en `docs/ACCESO-SENCILLO.md`.
 
 ## Instalación y ejecución
 
@@ -21,7 +21,7 @@ npm run dev
 
 Abrir `http://127.0.0.1:5173/caie-tienda/`. `.env.local` ya está configurado en la instalación actual y excluido de Git. URL y publishable key son públicas. Nunca añadir contraseñas PostgreSQL, secret keys ni claves service_role a variables `VITE_*`.
 
-La aplicación comparte los registros de Supabase entre los cinco teléfonos mediante enlaces privados; cada navegador recuerda el acceso. No se introduce correo ni contraseña en esta etapa. Las políticas de acceso siguen aplicándose internamente. No hay datos ficticios en la aplicación; las pruebas interceptan HTTP únicamente en Playwright.
+La aplicación abre directamente la tienda compartida en cualquiera de los cinco teléfonos, sin correo, contraseña ni enlaces privados. Por autorización expresa del propietario, cualquier visitante puede consultar y modificar los recursos de esta etapa. `open_store` reutiliza las operaciones transaccionales existentes; las tablas mantienen RLS y no permiten escritura directa. No hay datos ficticios en la aplicación; las pruebas interceptan HTTP únicamente en Playwright.
 
 ## Arquitectura y estructura
 
@@ -47,7 +47,7 @@ Tablas: `profiles`, `participants`, `products`, `events`, `purchases`, `purchase
 
 `confirm_purchase` valida perfil activo, bloquea el evento para lectura compartida, bloquea al participante y los productos ordenados por UUID, verifica precios y saldo, inserta compra/detalle, descuenta horas/unidades y registra auditoría en una sola transacción. Un bloqueo de asesoría por clave UUID y una restricción única garantizan idempotencia. La misma clave con distinto contenido u operador se rechaza. Los precios del navegador solo sirven para detectar cambios; la base calcula con sus propios precios.
 
-`cancel_purchase` conserva la compra, reintegra horas y unidades, registra motivo/administrador y rechaza una segunda anulación. El Status se deriva de compras confirmadas del evento activo. Realtime invalida consultas y hay revalidación al recuperar foco, conexión y cada 30 segundos. `app_snapshot` y `export_snapshot` construyen todos sus datos mediante un solo SELECT para conservar una lectura consistente.
+`cancel_purchase` conserva la compra, reintegra horas y unidades, registra motivo/actor y rechaza una segunda anulación. El Status se deriva de compras confirmadas del evento activo. En acceso público hay revalidación al recuperar foco, conexión y cada 30 segundos; Realtime se mantiene para el modo por cuentas. `app_snapshot` y `export_snapshot` construyen todos sus datos mediante un solo SELECT para conservar una lectura consistente.
 
 ## Supabase y migraciones
 
@@ -76,11 +76,11 @@ No activar registros públicos ni usuarios anónimos. La configuración solo mod
 
 ## Acceso sencillo de CAIE
 
-Por la simplificación solicitada, los cinco teléfonos pueden utilizar la cuenta CAIE ya preparada. No se requiere una lista de voluntarios ni gestionar roles desde la interfaz. Abrir una vez el enlace privado asignado a cada teléfono; el navegador conserva el acceso sin pedir correo ni contraseña. Los cinco enlaces están en `C:/Users/emili/Documents/CAIE-privado/accesos-telefonos/abrir-tienda.html`; consultar `docs/ACCESO-SENCILLO.md`. La auditoría identifica esa cuenta compartida y no a cada persona que la usa. La autenticación se mantiene para proteger los datos aunque alguien conozca la URL pública.
+Por la simplificación y el acceso público solicitados, los cinco teléfonos abren la URL normal. No se requiere una lista de voluntarios, una cuenta ni gestionar roles desde la interfaz. Cualquier visitante puede consultar y modificar los recursos. La auditoría etiqueta esos movimientos como **Acceso público**. Consultar `docs/ACCESO-SENCILLO.md` para el uso y el cierre posterior de este modo. Los enlaces privados anteriores ya no son necesarios.
 
-### Procedimiento opcional de cuentas separadas
+### Procedimiento de cuentas separadas para una etapa posterior
 
-Una cuenta Auth sin perfil no recibe acceso a datos. No existe una función pública para convertirse en administrador. Crear las cuentas mediante el script privilegiado local después de aplicar la migración:
+Estas restricciones describen el modo por cuentas, cuando el acceso público se haya cerrado y se publique con `VITE_PUBLIC_ACCESS=false` y `VITE_SIMPLE_ACCESS=false`. Una cuenta Auth sin perfil no recibe acceso a datos por los endpoints privados. No existe una función pública para administrar cuentas. Crear las cuentas mediante el script privilegiado local:
 
 ```powershell
 npm run accounts
@@ -108,7 +108,7 @@ El hash SHA-256 identifica el lote. Repetir exactamente el archivo devuelve cero
 
 ## Uso y exportación
 
-Voluntario: iniciar sesión → Nueva compra → grupo → participante → productos/cantidades → Revisar compra → Confirmar. Revisar nombre y artículos con el participante. Una segunda compra muestra advertencia y permite continuar. Sin conexión no se confirma.
+Abrir la página → Nueva compra → grupo → participante → productos/cantidades → Revisar compra → Confirmar. Revisar nombre y artículos con el participante. Una segunda compra muestra advertencia y permite continuar. Sin conexión no se confirma.
 
 Si se pierde una respuesta, mantener la pantalla abierta y usar **Reintentar confirmación**, que conserva el mismo identificador y contenido. No repetir la compra desde otra pantalla sin revisar primero el historial. Solo se muestra éxito después de una respuesta válida. Ante conflicto definitivo, volver a editar y revisar inventario/saldo actualizado.
 

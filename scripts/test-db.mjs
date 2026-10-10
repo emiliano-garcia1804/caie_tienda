@@ -845,6 +845,282 @@ try {
       120 - sold * 2,
     );
   });
+  const publicActor = "aaca1e00-0000-4000-8000-000000000001";
+  async function enablePublic() {
+    await pool.query("insert into auth.users(id) values($1)", [publicActor]);
+    await pool.query(
+      "insert into public.profiles(id,display_name,role) values($1,'Acceso público','admin')",
+      [publicActor],
+    );
+    await pool.query(
+      "insert into caie_private.store_access(singleton,enabled,actor_id) values(true,true,$1)",
+      [publicActor],
+    );
+  }
+  async function openStore(operation, params = {}) {
+    const c = await pool.connect();
+    try {
+      await c.query("begin");
+      await c.query("set local role anon");
+      const result = await c.query("select public.open_store($1,$2) result", [
+        operation,
+        JSON.stringify(params),
+      ]);
+      assert.equal(
+        (
+          await c.query(
+            "select nullif(current_setting('request.jwt.claim.sub',true),'') sub",
+          )
+        ).rows[0].sub,
+        null,
+      );
+      await c.query("commit");
+      return result.rows[0].result;
+    } catch (e) {
+      await c.query("rollback");
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  const publicBuy = (person = ids.people[0], key = randomUUID()) =>
+    openStore("confirm_purchase", {
+      p_participant: person,
+      p_event: ids.event,
+      p_key: key,
+      p_items: items(),
+    });
+  await test("Página pública obtiene registros y exportación sin sesión", async () => {
+    await seed();
+    await enablePublic();
+    const snapshot = await openStore("app_snapshot");
+    assert.equal(snapshot.profile.display_name, "Acceso público");
+    assert.equal(snapshot.participants.length, 6);
+    assert.equal(snapshot.products.length, 6);
+    assert.equal((await openStore("export_snapshot")).participants.length, 6);
+  });
+  await test("Acceso público añade participantes y productos con saldo exacto y auditoría", async () => {
+    await seed();
+    await enablePublic();
+    await openStore("admin_participant", {
+      p_id: null,
+      p_name: "Nueva persona pública sintética",
+      p_group: "Grandes",
+      p_balance: "12.345",
+      p_reason: "Registro inicial",
+      p_expected_balance: null,
+    });
+    const product = await openStore("admin_product", {
+      p_id: null,
+      p_name: "Producto público sintético",
+      p_category: "Hogar",
+      p_price: "1.125",
+      p_stock: 7,
+      p_active: true,
+      p_reason: "Registro inicial",
+      p_expected_stock: null,
+      p_expected_price: null,
+    });
+    assert.match(product, /^[0-9a-f-]{36}$/);
+    const snapshot = await openStore("app_snapshot");
+    assert.equal(
+      snapshot.participants.find(
+        (p) => p.name === "Nueva persona pública sintética",
+      ).balance,
+      "12.345",
+    );
+    assert.equal(
+      snapshot.products.find((p) => p.id === product).price,
+      "1.125",
+    );
+    assert.equal(
+      snapshot.audit.filter(
+        (a) => a.reason === "Registro inicial" && a.actor_id === publicActor,
+      ).length,
+      2,
+    );
+  });
+  await test("Compra pública conserva atomicidad, idempotencia y anulación exacta", async () => {
+    await seed();
+    await enablePublic();
+    const key = randomUUID();
+    const first = await publicBuy(ids.people[0], key);
+    const retry = await publicBuy(ids.people[0], key);
+    assert.equal(first.id, retry.id);
+    assert.deepEqual(await balances(), ["18.000", 19, 1]);
+    await openStore("cancel_purchase", {
+      p_purchase: first.id,
+      p_reason: "Anulación sintética",
+    });
+    assert.deepEqual(await balances(), ["20.000", 20, 1]);
+    await assert.rejects(
+      () =>
+        openStore("cancel_purchase", {
+          p_purchase: first.id,
+          p_reason: "Reintento sintético",
+        }),
+      /ya fue anulada/,
+    );
+    const purchase = (
+      await pool.query(
+        "select operator_id,cancelled_by from public.purchases where id=$1",
+        [first.id],
+      )
+    ).rows[0];
+    assert.equal(purchase.operator_id, publicActor);
+    assert.equal(purchase.cancelled_by, publicActor);
+  });
+  await test("Cinco teléfonos públicos concurrentes conservan inventario y saldos", async () => {
+    await seed({ stock: 3 });
+    await enablePublic();
+    const results = await Promise.allSettled(
+      ids.people.slice(0, 5).map((id) => publicBuy(id)),
+    );
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 3);
+    assert.equal(results.filter((r) => r.status === "rejected").length, 2);
+    assert.equal(
+      (
+        await pool.query("select stock from public.products where id=$1", [
+          ids.products[0],
+        ])
+      ).rows[0].stock,
+      0,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "select sum(balance)::text total from public.participants",
+        )
+      ).rows[0].total,
+      "114.000",
+    );
+  });
+  await test("Operación pública inválida hace rollback sin alterar saldos, existencias ni auditoría", async () => {
+    await seed({ balance: "1" });
+    await enablePublic();
+    const before = (
+      await pool.query("select count(*)::int n from public.audit_log")
+    ).rows[0].n;
+    await assert.rejects(() => publicBuy(), /Saldo insuficiente/);
+    assert.deepEqual(await balances(), ["1.000", 20, 0]);
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.audit_log")).rows[0]
+        .n,
+      before,
+    );
+    await assert.rejects(
+      () =>
+        openStore("admin_participant", {
+          p_name: "Inválida",
+          p_group: "Grandes",
+          p_balance: "-1",
+          p_reason: "Registro inicial",
+        }),
+      /decimal no negativo/,
+    );
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.participants"))
+        .rows[0].n,
+      6,
+    );
+  });
+  await test("Acceso público conserva RLS y no expone configuración ni gestión de cuentas", async () => {
+    await seed();
+    await enablePublic();
+    for (const sql of [
+      "select * from caie_private.store_access",
+      "update public.participants set balance=999",
+      "update public.profiles set role='admin'",
+      "select public.require_role(true)",
+      "select public.app_snapshot()",
+    ])
+      await assert.rejects(() => anonymous(sql), /permission denied/);
+    await assert.rejects(
+      () => openStore("admin_profile", { p_id: operators[0], p_role: "admin" }),
+      /no disponible/,
+    );
+    await assert.rejects(
+      () =>
+        openStore("arbitrary_sql", { sql: "delete from public.participants" }),
+      /no disponible/,
+    );
+    const c = await pool.connect();
+    try {
+      await c.query("begin");
+      await c.query("set local role authenticated");
+      await c.query(
+        "select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",
+        [
+          operators[0],
+          JSON.stringify({ sub: operators[0], role: "authenticated" }),
+        ],
+      );
+      await c.query("select public.open_store('app_snapshot')");
+      assert.equal(
+        (await c.query("select auth.uid() id")).rows[0].id,
+        operators[0],
+      );
+      assert.equal(
+        (await c.query("select current_setting('request.jwt.claims') claims"))
+          .rows[0].claims,
+        JSON.stringify({ sub: operators[0], role: "authenticated" }),
+      );
+    } finally {
+      await c.query("rollback");
+      c.release();
+    }
+  });
+  await test("Se puede cerrar el acceso público desde configuración privada", async () => {
+    await seed();
+    await enablePublic();
+    await pool.query("update caie_private.store_access set enabled=false");
+    await assert.rejects(() => openStore("app_snapshot"), /está cerrado/);
+    await assert.rejects(() => publicBuy(), /está cerrado/);
+    assert.deepEqual(await balances(), ["20.000", 20, 0]);
+    assert.equal(
+      (await as(admin, "select public.app_snapshot() s"))[0].s.participants
+        .length,
+      6,
+    );
+  });
+  await test("Gestión pública de eventos mantiene exclusividad e importación no reemplaza datos", async () => {
+    await seed();
+    await enablePublic();
+    const pending = await openStore("admin_event", {
+      p_id: null,
+      p_name: "Evento público sintético",
+      p_date: "2026-10-10",
+      p_action: "create",
+    });
+    await assert.rejects(
+      () => openStore("admin_event", { p_id: pending, p_action: "activate" }),
+      /Cierra el evento activo/,
+    );
+    await openStore("admin_event", { p_id: ids.event, p_action: "close" });
+    await openStore("admin_event", { p_id: pending, p_action: "activate" });
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int n from public.events where state='active'",
+        )
+      ).rows[0].n,
+      1,
+    );
+    await assert.rejects(
+      () =>
+        openStore("initial_import", {
+          p_fingerprint: "f".repeat(64),
+          p_participants: [],
+          p_products: [],
+        }),
+      /importación inicial está cerrada/,
+    );
+    assert.equal(
+      (await pool.query("select count(*)::int n from public.participants"))
+        .rows[0].n,
+      6,
+    );
+  });
   await test("Todas las tablas protegidas con RLS y SECURITY DEFINER con search_path vacío", async () => {
     const tables = await pool.query(
       "select relname,relrowsecurity from pg_class join pg_namespace on pg_namespace.oid=relnamespace where nspname='public' and relkind='r'",
