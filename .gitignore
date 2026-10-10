@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env*
+!.env.example
+.local/
+private/
+*.xlsx
+*.xls
+*.csv
+*.dump
+*.backup
+playwright-report/
+test-results/
+supabase/.temp/
+supabase/.branches/
+*.log
+*.tsbuildinfo

@@ -1,0 +1,35 @@
+name: Verificar CAIE Tienda
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://krjyplolmaoflcknhlpt.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_kcG3Birh6buxfoIqEfC-mA_vaXMOU0f
+      - run: npm test
+      - name: Preparar PostgreSQL real
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+          echo "CAIE_PG_BIN=$(pg_config --bindir)" >> "$GITHUB_ENV"
+      - run: npm run test:db
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          VITE_SUPABASE_URL: https://krjyplolmaoflcknhlpt.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_kcG3Birh6buxfoIqEfC-mA_vaXMOU0f
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failures-synthetic
+          path: playwright-report/

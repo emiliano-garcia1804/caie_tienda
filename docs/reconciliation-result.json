@@ -1,0 +1,21 @@
+{
+  "executed_at": "2026-10-10T02:25:14.330Z",
+  "status": "PASS",
+  "participant_balances_all_match": true,
+  "products_prices_and_units_all_match": true,
+  "participants": 182,
+  "products": 42,
+  "groups": {
+    "Grandes": 32,
+    "Medianos": 40,
+    "Pequeños": 44,
+    "Mamás": 55,
+    "Papás": 11
+  },
+  "hours_total": "1075",
+  "purchases": 0,
+  "missing_fields": 2,
+  "private_export_created": true,
+  "export_reopened": true,
+  "original_fingerprint": "be02077420c5c568278f51652d652ed0d0e0da54ff9aa6003cfb9b3f060ae4d3"
+}

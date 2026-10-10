@@ -1,0 +1,40 @@
+{
+  "executed_at": "2026-10-10T02:22:33.374Z",
+  "project": "krjyplolmaoflcknhlpt",
+  "no_purchase_created": true,
+  "no_participant_imported": true,
+  "results": [
+    {
+      "name": "Registro público deshabilitado y proveedor email activo",
+      "status": "PASS"
+    },
+    {
+      "name": "Anónimo no lee participantes ni compras",
+      "status": "PASS"
+    },
+    {
+      "name": "Anónimo no ejecuta snapshot ni exportación",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase Auth real: sesión individual desde enlace administrativo",
+      "status": "PASS"
+    },
+    {
+      "name": "Administrador obtiene snapshot y exportación mediante su JWT",
+      "status": "PASS"
+    },
+    {
+      "name": "JWT autorizado tampoco permite modificar directamente saldo, precio ni permisos",
+      "status": "PASS"
+    },
+    {
+      "name": "Compra inválida rechazada sin crear transacciones",
+      "status": "PASS"
+    },
+    {
+      "name": "Realtime remoto acepta suscripción autenticada",
+      "status": "PASS"
+    }
+  ]
+}

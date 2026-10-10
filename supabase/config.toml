@@ -1,0 +1,19 @@
+project_id = "caie-tienda"
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+[auth]
+enabled = true
+site_url = "http://localhost:5173/caie-tienda/"
+additional_redirect_urls = ["http://localhost:5173/caie-tienda/", "http://127.0.0.1:5173/caie-tienda/", "http://127.0.0.1:4173/caie-tienda/"]
+enable_signup = false
+[auth.email]
+enable_signup = true
+enable_confirmations = true

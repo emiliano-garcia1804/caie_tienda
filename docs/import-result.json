@@ -1,0 +1,16 @@
+{
+  "executed_at": "2026-10-10T02:24:31.680Z",
+  "fingerprint": "be02077420c5c568278f51652d652ed0d0e0da54ff9aa6003cfb9b3f060ae4d3",
+  "participants_found": 182,
+  "products_found": 42,
+  "already_imported": false,
+  "products_imported": 42,
+  "participants_imported": 182,
+  "participants_current": 182,
+  "products_current": 42,
+  "hours_current_total": "1075",
+  "ambiguous": 0,
+  "missing_fields": 2,
+  "errors": 0,
+  "historical_purchases_imported": 0
+}

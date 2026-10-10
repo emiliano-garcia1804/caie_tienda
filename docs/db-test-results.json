@@ -1,0 +1,142 @@
+{
+  "executed_at": "2026-10-10T02:29:01.510Z",
+  "engine": "PostgreSQL 15 real; auth.uid shim local, sin servicio Supabase Auth",
+  "results": [
+    {
+      "name": "Migración completa sobre PostgreSQL 15 real",
+      "status": "PASS"
+    },
+    {
+      "name": "Compra de un artículo, saldo, inventario y Status",
+      "status": "PASS"
+    },
+    {
+      "name": "Múltiples artículos y varias unidades",
+      "status": "PASS"
+    },
+    {
+      "name": "Horas fraccionarias exactas",
+      "status": "PASS"
+    },
+    {
+      "name": "Saldo insuficiente",
+      "status": "PASS"
+    },
+    {
+      "name": "Inventario insuficiente",
+      "status": "PASS"
+    },
+    {
+      "name": "Producto agotado",
+      "status": "PASS"
+    },
+    {
+      "name": "Precio NA",
+      "status": "PASS"
+    },
+    {
+      "name": "Inventario NA",
+      "status": "PASS"
+    },
+    {
+      "name": "Precio alterado desde navegador",
+      "status": "PASS"
+    },
+    {
+      "name": "Cantidad fraccionaria",
+      "status": "PASS"
+    },
+    {
+      "name": "Productos duplicados",
+      "status": "PASS"
+    },
+    {
+      "name": "Segunda compra del mismo participante permitida",
+      "status": "PASS"
+    },
+    {
+      "name": "Anulación atómica, restitución, Status y doble anulación",
+      "status": "PASS"
+    },
+    {
+      "name": "Anular una compra conserva Status si hay otra vigente",
+      "status": "PASS"
+    },
+    {
+      "name": "Nuevo evento reinicia Status y conserva saldos e inventario",
+      "status": "PASS"
+    },
+    {
+      "name": "A: dos operadores compiten por última unidad",
+      "status": "PASS"
+    },
+    {
+      "name": "B: dos operadores compiten por últimas horas",
+      "status": "PASS"
+    },
+    {
+      "name": "C: cinco operadores simultáneos sin actualizaciones perdidas",
+      "status": "PASS"
+    },
+    {
+      "name": "Cinco sesiones de la misma cuenta CAIE conservan consistencia",
+      "status": "PASS"
+    },
+    {
+      "name": "D: doble confirmación concurrente idempotente",
+      "status": "PASS"
+    },
+    {
+      "name": "E: respuesta descartada después de commit; reintento recupera resultado",
+      "status": "PASS"
+    },
+    {
+      "name": "F: fallo inyectado después de descuentos revierte toda la transacción",
+      "status": "PASS"
+    },
+    {
+      "name": "Carritos opuestos no causan deadlock",
+      "status": "PASS"
+    },
+    {
+      "name": "Anónimo no lee participantes ni compras ni ejecuta RPC",
+      "status": "PASS"
+    },
+    {
+      "name": "Operador no modifica directamente saldos, precios ni permisos",
+      "status": "PASS"
+    },
+    {
+      "name": "RLS rechaza lectura por usuario sin perfil y perfil desactivado",
+      "status": "PASS"
+    },
+    {
+      "name": "RPC administrativas y exportación restringidas",
+      "status": "PASS"
+    },
+    {
+      "name": "Ajuste de horas auditado y formulario obsoleto rechazado",
+      "status": "PASS"
+    },
+    {
+      "name": "Ajuste de producto y protección contra existencias obsoletas",
+      "status": "PASS"
+    },
+    {
+      "name": "Importación inicial y reimportación sin sobrescribir compras",
+      "status": "PASS"
+    },
+    {
+      "name": "Importación ambigua o inválida revierte todos los registros",
+      "status": "PASS"
+    },
+    {
+      "name": "Exportación snapshot consistente durante cinco compras",
+      "status": "PASS"
+    },
+    {
+      "name": "Todas las tablas protegidas con RLS y SECURITY DEFINER con search_path vacío",
+      "status": "PASS"
+    }
+  ]
+}
