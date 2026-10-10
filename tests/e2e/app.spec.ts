@@ -488,7 +488,11 @@ test("Añadir participante, conservarlo al recargar y descargarlo en Excel", asy
   await form.getByLabel("Grupo del participante").selectOption("Grandes");
   await form.getByLabel("Saldo de horas").fill("12.345");
   await form.getByRole("button", { name: "Guardar participante" }).click();
-  await expect(page.getByRole("status")).toContainText("Cambios guardados");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Esta compra dejará inventario negativo" }),
+  ).toContainText("Cambios guardados");
   await expect(
     page.getByRole("heading", { name: "Nuevo participante" }),
   ).toHaveCount(0);
@@ -625,12 +629,24 @@ test("Compra con stock cero muestra advertencia, guarda negativo y exporta", asy
   await page
     .getByRole("button", { name: "Agregar Producto agotado", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("inventario negativo");
-  await expect(page.getByRole("status")).toContainText("-1 unidades");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Esta compra dejará inventario negativo" }),
+  ).toContainText("inventario negativo");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Esta compra dejará inventario negativo" }),
+  ).toContainText("-1 unidades");
   await page
     .getByRole("button", { name: "Revisar compra", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("inventario negativo");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Esta compra dejará inventario negativo" }),
+  ).toContainText("inventario negativo");
   await page
     .getByRole("button", { name: "Confirmar compra", exact: true })
     .click();
