@@ -489,9 +489,7 @@ test("Añadir participante, conservarlo al recargar y descargarlo en Excel", asy
   await form.getByLabel("Saldo de horas").fill("12.345");
   await form.getByRole("button", { name: "Guardar participante" }).click();
   await expect(
-    page
-      .getByRole("status")
-      .filter({ hasText: "Esta compra dejará inventario negativo" }),
+    page.getByRole("status").filter({ hasText: "Cambios guardados" }),
   ).toContainText("Cambios guardados");
   await expect(
     page.getByRole("heading", { name: "Nuevo participante" }),
