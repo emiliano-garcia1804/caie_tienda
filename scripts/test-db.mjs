@@ -438,6 +438,122 @@ try {
       assert.deepEqual(await balances(), ["20.000", stock, 1]);
     }
   });
+  await test("Producto no listado: compra mixta, reintentos simultáneos, Excel y anulación", async () => {
+    await seed();
+    const id = randomUUID(),
+      key = randomUUID();
+    const selection = [
+      ...items(ids.products[0], 1),
+      {
+        product_id: id,
+        quantity: 2,
+        expected_price: "1.5",
+        new_product: true,
+        new_name: "Bolsa nueva sintética",
+        new_category: "Hogar",
+      },
+    ];
+    const receipts = await Promise.all(
+      Array.from({ length: 3 }, () =>
+        buy(operators[0], ids.people[0], selection, key),
+      ),
+    );
+    assert.ok(receipts.every((r) => r.id === receipts[0].id));
+    assert.equal(receipts[0].total, "5.000");
+    assert.deepEqual(await balances(), ["15.000", 19, 1]);
+    const snapshot = (await as(admin, "select public.export_snapshot() s"))[0]
+      .s;
+    assert.equal(snapshot.products.find((p) => p.id === id).stock, -2);
+    assert.equal(
+      snapshot.purchases[0].items.find((i) => i.product_id === id).product_name,
+      "Bolsa nueva sintética",
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int n from public.audit_log where record_id=$1 and operation='INSERT'",
+          [id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    await assert.rejects(
+      () =>
+        buy(
+          operators[0],
+          ids.people[0],
+          [{ ...selection[1], new_name: "Nombre cambiado" }],
+          key,
+        ),
+      /otra operación/,
+    );
+    await as(admin, "select public.cancel_purchase($1,$2)", [
+      receipts[0].id,
+      "Anulación sintética",
+    ]);
+    assert.equal(
+      (await pool.query("select stock from public.products where id=$1", [id]))
+        .rows[0].stock,
+      0,
+    );
+    assert.deepEqual(await balances(), ["20.000", 20, 1]);
+  });
+  await test("Producto no listado: errores revierten alta, auditoría y compra", async () => {
+    await seed({ balance: "1" });
+    const id = randomUUID();
+    const selection = [
+      {
+        product_id: id,
+        quantity: 1,
+        expected_price: "2",
+        new_product: true,
+        new_name: "Producto sintético",
+        new_category: "Hogar",
+      },
+    ];
+    await assert.rejects(
+      () => buy(operators[0], ids.people[0], selection),
+      /Saldo insuficiente/,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int n from public.products where id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int n from public.audit_log where record_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      0,
+    );
+    await assert.rejects(
+      () =>
+        buy(operators[0], ids.people[0], [{ ...selection[0], new_name: "  " }]),
+      /nombre y categoría/,
+    );
+    await assert.rejects(
+      () =>
+        buy(operators[0], ids.people[0], [
+          { ...selection[0], expected_price: "-1" },
+        ]),
+      /horas|Horas/,
+    );
+    await assert.rejects(
+      () =>
+        buy(operators[0], ids.people[0], [
+          { ...selection[0], product_id: ids.products[0] },
+        ]),
+      /ya existe/,
+    );
+    assert.deepEqual(await balances(), ["1.000", 20, 0]);
+  });
   await test("Segunda compra del mismo participante permitida", async () => {
     await seed();
     await buy();

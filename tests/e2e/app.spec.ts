@@ -172,6 +172,18 @@ async function setup(
           (c) => c.idempotency_key === body.p_key,
         );
         if (!purchase) {
+          for (const i of body.p_items) {
+            if (i.new_product)
+              data.products.push({
+                id: i.product_id,
+                name: i.new_name,
+                category: i.new_category,
+                price: i.expected_price,
+                stock: 0,
+                active: true,
+                availability: "review",
+              });
+          }
           const items = body.p_items.map((i: any) => {
             const p = data.products.find((p) => p.id === i.product_id)!;
             return {
@@ -617,6 +629,65 @@ test("Catálogo búsqueda y categorías, conexión y objetivos táctiles", async
   expect(box!.height).toBeGreaterThanOrEqual(44);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await noOverflow(page);
+});
+
+test("Producto no listado se guarda al confirmar, recupera respuesta y aparece en Excel", async ({
+  page,
+}) => {
+  const data = await setup(page, { lostResponse: true });
+  await openCheckout(page);
+  await page
+    .getByText("¿No encuentras el producto? Agregar uno no listado", {
+      exact: true,
+    })
+    .click();
+  await page
+    .getByLabel("Nombre del producto no listado", { exact: true })
+    .fill("Bolsa nueva sintética");
+  await page.getByLabel("Costo unitario en horas", { exact: true }).fill("1.5");
+  await page
+    .getByLabel("Cantidad del producto no listado", { exact: true })
+    .fill("2");
+  await page
+    .getByRole("button", { name: "Añadir producto no listado", exact: true })
+    .click();
+  expect(data.products.some((p) => p.name === "Bolsa nueva sintética")).toBe(
+    false,
+  );
+  await noOverflow(page);
+  await page
+    .getByRole("button", { name: "Revisar compra", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmar compra", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Reintentar confirmación", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Compra registrada correctamente" }),
+  ).toBeVisible();
+  expect(
+    data.products.filter((p) => p.name === "Bolsa nueva sintética"),
+  ).toHaveLength(1);
+  expect(
+    data.products.find((p) => p.name === "Bolsa nueva sintética")!.stock,
+  ).toBe(-2);
+  expect(data.participants[0].balance).toBe("9");
+  expect(data.purchases).toHaveLength(1);
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
+  const pending = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Descargar Excel actualizado", exact: true })
+    .click();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await (await pending).path())!);
+  expect(
+    JSON.stringify(workbook.getWorksheet("Inventario")!.getSheetValues()),
+  ).toContain("Bolsa nueva sintética");
+  expect(
+    JSON.stringify(workbook.getWorksheet("Movimientos")!.getSheetValues()),
+  ).toContain("Bolsa nueva sintética");
 });
 
 test("Compra con stock cero muestra advertencia, guarda negativo y exporta", async ({

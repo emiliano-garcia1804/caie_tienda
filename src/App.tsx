@@ -734,6 +734,11 @@ function Checkout({
     person = data.participants.find((p) => p.id === id),
     event = data.events.find((e) => e.state === "active");
   const [cart, setCart] = useState<Cart>({}),
+    [unlisted, setUnlisted] = useState<Product[]>([]),
+    [newName, setNewName] = useState(""),
+    [newCost, setNewCost] = useState(""),
+    [newQuantity, setNewQuantity] = useState("1"),
+    [newCategory, setNewCategory] = useState<string>("Hogar"),
     [search, setSearch] = useState(""),
     [category, setCategory] = useState("Todas"),
     [stage, setStage] = useState<"edit" | "confirm" | "success">("edit"),
@@ -753,7 +758,11 @@ function Checkout({
     [savedBalance, setSavedBalance] = useState("0");
   const calculation = attempt
     ? calculateCart(cart, savedItems, savedBalance)
-    : calculateCart(cart, data.products, person?.balance ?? "0");
+    : calculateCart(
+        cart,
+        [...data.products, ...unlisted],
+        person?.balance ?? "0",
+      );
   const blocker = useBlocker(!!attempt);
   useEffect(() => {
     if (blocker.state === "blocked") {
@@ -789,6 +798,9 @@ function Checkout({
         product_id: p.id,
         quantity: p.quantity,
         expected_price: p.price!,
+        ...(unlisted.some((item) => item.id === p.id)
+          ? { new_product: true, new_name: p.name, new_category: p.category }
+          : {}),
       })),
     };
     if (!attempt) {
@@ -929,6 +941,113 @@ function Checkout({
               <ProductFilters
                 {...{ search, setSearch, category, setCategory }}
               />
+              <details className="panel unlisted-product">
+                <summary>
+                  ¿No encuentras el producto? Agregar uno no listado
+                </summary>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (busy || !online || !event || attempt) return;
+                    const existing = [...data.products, ...unlisted].find(
+                      (p) => normalize(p.name) === normalize(newName),
+                    );
+                    if (existing) {
+                      setSearch(existing.name);
+                      setCategory("Todas");
+                      setError(
+                        "Este producto ya está en el catálogo. Selecciónalo o corrige sus datos en Gestión.",
+                      );
+                      return;
+                    }
+                    const item: Product = {
+                      id: crypto.randomUUID(),
+                      name: newName.trim(),
+                      category: newCategory,
+                      price: hours(newCost),
+                      stock: 0,
+                      active: true,
+                      availability: "review",
+                    };
+                    setUnlisted((items) => [...items, item]);
+                    setCart((c) => ({ ...c, [item.id]: Number(newQuantity) }));
+                    setNewName("");
+                    setNewCost("");
+                    setNewQuantity("1");
+                    setError("");
+                  }}
+                >
+                  <h2>¿No encuentras el producto?</h2>
+                  <p>
+                    Agrega un producto no listado. Se guardará en el catálogo al
+                    confirmar la compra; su inventario quedará pendiente de
+                    conciliar.
+                  </p>
+                  <label>
+                    Nombre del producto no listado
+                    <input
+                      required
+                      maxLength={200}
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      pattern={".*\\S.*"}
+                    />
+                  </label>
+                  <label>
+                    Costo unitario en horas
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      max="999999999.999"
+                      step="0.001"
+                      value={newCost}
+                      onChange={(e) => setNewCost(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Cantidad del producto no listado
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      max="999999"
+                      step="1"
+                      value={newQuantity}
+                      onChange={(e) => setNewQuantity(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Categoría del producto no listado
+                    <select
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                    >
+                      {categories.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="secondary"
+                    disabled={busy || !online || !event || !!attempt}
+                  >
+                    Añadir producto no listado
+                  </button>
+                </form>
+              </details>
+              {unlisted.length > 0 && (
+                <div className="catalog">
+                  {unlisted.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      p={p}
+                      quantity={cart[p.id]}
+                      change={(n) => setCart((c) => ({ ...c, [p.id]: n }))}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="catalog">
                 {data.products
                   .filter(

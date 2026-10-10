@@ -1573,3 +1573,17 @@ footer span {
   color: #8a3c13;
   background: #fff1df;
 }
+
+.unlisted-product {
+  margin-bottom: 16px;
+}
+.unlisted-product summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.unlisted-product form {
+  margin-top: 16px;
+}
+.unlisted-product label {
+  margin-bottom: 12px;
+}
