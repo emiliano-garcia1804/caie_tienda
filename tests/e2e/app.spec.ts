@@ -164,7 +164,7 @@ async function setup(
             {
               code: "P0001",
               message:
-                "Inventario insuficiente para Cobija de prueba. Revisa el carrito.",
+                "El precio de Cobija de prueba cambió. Revisa el carrito.",
             },
             400,
           );
@@ -317,7 +317,7 @@ test("Carrito, cantidades, costo, confirmación, éxito, historial y siguiente p
   await expect(page.getByText("9 horas", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Agregar Producto agotado" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Agregar Precio pendiente" }),
   ).toBeDisabled();
@@ -351,7 +351,7 @@ test("Carrito, cantidades, costo, confirmación, éxito, historial y siguiente p
   ).toBeVisible();
   await noOverflow(page);
 });
-test("Saldo insuficiente bloquea confirmación y límites de stock", async ({
+test("Saldo insuficiente bloquea confirmación sin límite por stock", async ({
   page,
 }) => {
   await setup(page);
@@ -370,10 +370,10 @@ test("Saldo insuficiente bloquea confirmación y límites de stock", async ({
       .click();
   await expect(
     page.getByRole("button", { name: "Agregar Cobija de prueba" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await noOverflow(page);
 });
-test("Conflicto de inventario vuelve a edición sin mostrar éxito", async ({
+test("Conflicto de precio vuelve a edición sin mostrar éxito", async ({
   page,
 }) => {
   await setup(page, { reject: true });
@@ -381,9 +381,7 @@ test("Conflicto de inventario vuelve a edición sin mostrar éxito", async ({
   await page.getByRole("button", { name: "Agregar Cobija de prueba" }).click();
   await page.getByRole("button", { name: "Revisar compra" }).click();
   await page.getByRole("button", { name: "Confirmar compra" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "Inventario insuficiente",
-  );
+  await expect(page.getByRole("alert")).toContainText("precio");
   await expect(
     page.getByRole("heading", { name: "Compra registrada correctamente" }),
   ).toHaveCount(0);
@@ -617,4 +615,49 @@ test("Catálogo búsqueda y categorías, conexión y objetivos táctiles", async
   expect(box!.height).toBeGreaterThanOrEqual(44);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await noOverflow(page);
+});
+
+test("Compra con stock cero muestra advertencia, guarda negativo y exporta", async ({
+  page,
+}) => {
+  const data = await setup(page);
+  await openCheckout(page);
+  await page
+    .getByRole("button", { name: "Agregar Producto agotado", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("inventario negativo");
+  await expect(page.getByRole("status")).toContainText("-1 unidades");
+  await page
+    .getByRole("button", { name: "Revisar compra", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("inventario negativo");
+  await page
+    .getByRole("button", { name: "Confirmar compra", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Compra registrada correctamente" }),
+  ).toBeVisible();
+  expect(data.products.find((p) => p.id === "prod3")!.stock).toBe(-1);
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Buscar productos", exact: true })
+    .fill("Producto agotado");
+  await expect(
+    page.getByText("Inventario negativo · revisar", { exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
+  const pending = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Descargar Excel actualizado", exact: true })
+    .click();
+  const download = await pending;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  const sheet = workbook.getWorksheet("Inventario")!;
+  let stock: unknown;
+  sheet.eachRow((row) => {
+    if (row.getCell(1).value === "Producto agotado")
+      stock = row.getCell(3).value;
+  });
+  expect(stock).toBe(-1);
 });

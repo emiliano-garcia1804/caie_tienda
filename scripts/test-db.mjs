@@ -345,18 +345,6 @@ try {
       /Saldo insuficiente/,
     ],
     [
-      "Inventario insuficiente",
-      () => seed({ stock: 1 }),
-      () => items(ids.products[0], 2),
-      /Inventario insuficiente/,
-    ],
-    [
-      "Producto agotado",
-      () => seed({ stock: 0 }),
-      () => items(),
-      /Inventario insuficiente/,
-    ],
-    [
       "Precio NA",
       async () => {
         await seed();
@@ -409,6 +397,47 @@ try {
         0,
       );
     });
+  await test("Stock cero y negativo: compra, reintento, auditoría y anulación", async () => {
+    for (const stock of [1, 0, -2]) {
+      await seed({ stock });
+      const key = randomUUID();
+      const purchase = await buy(
+        operators[0],
+        ids.people[0],
+        items(ids.products[0], 2),
+        key,
+      );
+      const retry = await buy(
+        operators[0],
+        ids.people[0],
+        items(ids.products[0], 2),
+        key,
+      );
+      assert.equal(retry.id, purchase.id);
+      assert.deepEqual(await balances(), ["16.000", stock - 2, 1]);
+      const snapshot = (await as(admin, "select public.export_snapshot() s"))[0]
+        .s;
+      assert.equal(
+        snapshot.products.find((p) => p.id === ids.products[0]).stock,
+        stock - 2,
+      );
+      assert.equal(
+        snapshot.products.find((p) => p.id === ids.products[0]).availability,
+        "review",
+      );
+      const audit = await pool.query(
+        "select before_value,after_value from public.audit_log where table_name='products' and record_id=$1 and operation='UPDATE'",
+        [ids.products[0]],
+      );
+      assert.equal(audit.rows[0].before_value.stock, stock);
+      assert.equal(audit.rows[0].after_value.stock, stock - 2);
+      await as(admin, "select public.cancel_purchase($1,$2)", [
+        purchase.id,
+        "Anulación de prueba",
+      ]);
+      assert.deepEqual(await balances(), ["20.000", stock, 1]);
+    }
+  });
   await test("Segunda compra del mismo participante permitida", async () => {
     await seed();
     await buy();
@@ -483,14 +512,14 @@ try {
       /Cierra el evento/,
     );
   });
-  await test("A: dos operadores compiten por última unidad", async () => {
+  await test("A: dos operadores descuentan última unidad y generan negativo", async () => {
     await seed({ stock: 1 });
     const r = await Promise.allSettled([
       buy(operators[0], ids.people[0]),
       buy(operators[1], ids.people[1]),
     ]);
-    assert.equal(r.filter((x) => x.status === "fulfilled").length, 1);
-    assert.equal((await balances())[1], 0);
+    assert.equal(r.filter((x) => x.status === "fulfilled").length, 2);
+    assert.equal((await balances())[1], -1);
   });
   await test("B: dos operadores compiten por últimas horas", async () => {
     await seed({ balance: "2" });
@@ -976,15 +1005,15 @@ try {
     const results = await Promise.allSettled(
       ids.people.slice(0, 5).map((id) => publicBuy(id)),
     );
-    assert.equal(results.filter((r) => r.status === "fulfilled").length, 3);
-    assert.equal(results.filter((r) => r.status === "rejected").length, 2);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 5);
+    assert.equal(results.filter((r) => r.status === "rejected").length, 0);
     assert.equal(
       (
         await pool.query("select stock from public.products where id=$1", [
           ids.products[0],
         ])
       ).rows[0].stock,
-      0,
+      -2,
     );
     assert.equal(
       (
@@ -992,7 +1021,7 @@ try {
           "select sum(balance)::text total from public.participants",
         )
       ).rows[0].total,
-      "114.000",
+      "110.000",
     );
   });
   await test("Operación pública inválida hace rollback sin alterar saldos, existencias ni auditoría", async () => {

@@ -178,6 +178,18 @@ export async function exportWorkbook(data: Snapshot): Promise<ArrayBuffer> {
       p.stock === null ? "NA" : p.stock,
       p.category,
     ]);
+  // Preserve signed stock numerically and flag discrepancies without adding columns.
+  for (let row = 2; row <= inv.rowCount; row++) {
+    const stock = inv.getCell(row, 3);
+    if (typeof stock.value === "number" && stock.value < 0) {
+      stock.font = { bold: true, color: { argb: "FF9C0006" } };
+      stock.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFFC7CE" },
+      };
+    }
+  }
   const mov = wb.addWorksheet("Movimientos");
   mov.addRow([
     "Fecha",

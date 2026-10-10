@@ -1,4 +1,4 @@
--- Read only. Run as admin from a protected DB connection. Empty result sets = no mismatches.
+-- Read only. Run as admin from a protected DB connection. Mismatch queries must return no rows; final query lists stock to reconcile.
 -- Balance audit trail: initial insert + exact deltas must reconcile with current balance.
 with ledger as (
  select record_id, sum(coalesce((after_value->>'balance')::numeric,0)-coalesce((before_value->>'balance')::numeric,0)) expected
@@ -13,5 +13,8 @@ with ledger as (
 select p.id,p.stock,l.expected from public.products p left join ledger l on l.record_id=p.id where p.stock is not null and p.stock is distinct from l.expected;
 select c.id,c.total,sum(i.subtotal) detail_total from public.purchases c left join public.purchase_items i on i.purchase_id=c.id group by c.id having c.total is distinct from sum(i.subtotal);
 select id from public.participants where balance<0;
-select id from public.products where stock<0 or price<0;
+select id from public.products where price<0;
 select count(*) active_events from public.events where state='active' having count(*)>1;
+
+-- Reconciliation information: negative stock is allowed, not a ledger mismatch.
+select id,stock from public.products where stock<0;

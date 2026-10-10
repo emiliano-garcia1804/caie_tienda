@@ -4,6 +4,10 @@
 
 Aplicación React/TypeScript para intercambiar horas educativas por artículos. Frontend estático para GitHub Pages; Supabase proporciona Auth, PostgreSQL, RLS y Realtime. No utiliza la API de OpenAI ni un servidor Node permanente.
 
+## Cambio de inventario negativo
+
+La nueva política permite stock cero y negativo en compras y ajustes, manteniendo el límite de horas del participante. El carrito advierte si una compra deja stock negativo y el Excel conserva y resalta ese valor. La migración y la publicación deben activarse por separado; consultar `docs/NEGATIVE-INVENTORY.md` para instrucciones y validación. Las secciones y resultados históricos siguientes describen la entrega anterior.
+
 ## Estado de entrega
 
 Implementados el flujo móvil completo, administración, compras y anulaciones atómicas, ajustes auditados, eventos, importación inicial protegida y exportación Excel. Consulta `docs/TEST_REPORT.md` y `docs/db-test-results.json` para conocer qué se ejecutó y qué sigue pendiente. El esquema remoto y la importación real ya fueron aplicados con autorización y conciliación. Existe un evento activo para el 10 de octubre de 2026. GitHub Pages está publicado en `https://emiliano-garcia1804.github.io/caie_tienda/`. Esta primera etapa usa acceso público expresamente autorizado, sin cuentas, contraseñas ni enlaces privados. El alcance del esquema original está descrito en `docs/schema-review.md` y el acceso actual en `docs/ACCESO-SENCILLO.md`.

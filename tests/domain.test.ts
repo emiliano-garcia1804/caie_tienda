@@ -25,20 +25,28 @@ describe("Carrito exacto", () => {
   });
   it("rechaza saldo insuficiente", () =>
     expect(calculateCart({ p: 3 }, [product], "0.2").valid).toBe(false));
-  it("rechaza stock insuficiente", () =>
-    expect(calculateCart({ p: 4 }, [product], "20").valid).toBe(false));
+  it.each([3, 0, -2])(
+    "permite compras con inventario %i y horas suficientes",
+    (stock) => {
+      expect(calculateCart({ p: 4 }, [{ ...product, stock }], "20").valid).toBe(
+        true,
+      );
+    },
+  );
   it.each([
     { ...product, price: null },
     { ...product, stock: null },
-    { ...product, stock: 0 },
     { ...product, active: false },
-  ])("bloquea agotados y datos pendientes %#", (p) => {
+  ])("bloquea productos inactivos y datos pendientes %#", (p) => {
     expect(purchasable(p)).toBe(false);
     expect(calculateCart({ p: 1 }, [p], "20").valid).toBe(false);
   });
   it("rechaza cantidades fraccionarias y carrito vacío", () => {
     expect(calculateCart({ p: 1.5 }, [product], "20").valid).toBe(false);
     expect(calculateCart({}, [product], "20").valid).toBe(false);
+    expect(calculateCart({ p: 1000000 }, [product], "999999").valid).toBe(
+      false,
+    );
   });
   it("normaliza acentos, capitalización y espacios para búsqueda", () =>
     expect(normalize("  JOSÉ   Pérez  ")).toBe("jose perez"));

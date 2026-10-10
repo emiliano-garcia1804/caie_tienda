@@ -628,9 +628,16 @@ function ProductCard({
             ·{" "}
             {p.stock === null
               ? "Existencias pendientes"
-              : `${p.stock} disponibles`}
+              : `${p.stock} en inventario`}
           </span>
         </p>
+        {p.stock !== null && p.stock <= 0 && p.active && (
+          <span className="badge inventory-review">
+            {p.stock < 0
+              ? "Inventario negativo · revisar"
+              : "Inventario en cero · verificar existencia física"}
+          </span>
+        )}
         {!purchasable(p) && (
           <span className="badge">
             {p.stock === 0 && p.price !== null && p.active
@@ -651,7 +658,7 @@ function ProductCard({
           <output aria-label={`Cantidad de ${p.name}`}>{quantity}</output>
           <button
             aria-label={`Agregar ${p.name}`}
-            disabled={!purchasable(p) || quantity >= (p.stock ?? 0)}
+            disabled={!purchasable(p) || quantity >= 999999}
             onClick={() => change(quantity + 1)}
           >
             <Plus size={17} />
@@ -987,12 +994,29 @@ function Checkout({
               El carrito supera las horas disponibles. Quita algunos artículos.
             </Alert>
           )}
-          {calculation.items.some(
-            (p) => !purchasable(p) || p.quantity > (p.stock ?? 0),
-          ) && (
+          {calculation.items.some((p) => !purchasable(p)) && (
             <Alert>
-              Cambió el inventario. Revisa las cantidades antes de continuar.
+              Un producto no está disponible o tiene información pendiente.
+              Revisa el carrito.
             </Alert>
+          )}
+          {calculation.items.some(
+            (p) => p.stock !== null && p.quantity > p.stock,
+          ) && (
+            <div className="notice" role="status">
+              Esta compra dejará inventario negativo. Confirma que los artículos
+              están físicamente disponibles y revisa las existencias después.
+              <ul>
+                {calculation.items
+                  .filter((p) => p.stock !== null && p.quantity > p.stock)
+                  .map((p) => (
+                    <li key={p.id}>
+                      {p.name}: {p.stock! - p.quantity} unidades después de la
+                      compra.
+                    </li>
+                  ))}
+              </ul>
+            </div>
           )}
           <button
             className="primary"
@@ -1560,9 +1584,11 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
         <label>
           Disponibilidad
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            {["Todos", "Agotados", "Información pendiente"].map((f) => (
-              <option key={f}>{f}</option>
-            ))}
+            {["Todos", "En cero o negativo", "Información pendiente"].map(
+              (f) => (
+                <option key={f}>{f}</option>
+              ),
+            )}
           </select>
         </label>
         <div className="admin-list">
@@ -1572,8 +1598,8 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
                 normalize(p.name).includes(normalize(search)) &&
                 (category === "Todas" || p.category === category) &&
                 (filter === "Todos" ||
-                  (filter === "Agotados"
-                    ? p.stock === 0
+                  (filter === "En cero o negativo"
+                    ? p.stock !== null && p.stock <= 0
                     : p.price === null || p.stock === null)),
             )
             .map((p) => (
@@ -1641,7 +1667,8 @@ function ProductAdmin({ data, action, busy }: AdminProps) {
             Existencias (unidades)
             <input
               type="number"
-              min="0"
+              min="-2147483648"
+              max="2147483647"
               step="1"
               value={stock}
               onChange={(e) => setStock(e.target.value)}

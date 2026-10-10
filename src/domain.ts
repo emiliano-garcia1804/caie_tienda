@@ -98,7 +98,7 @@ export const normalize = (value: string) =>
 export const hours = (value: string | number) =>
   new Decimal(value).toDecimalPlaces(3).toString();
 export const purchasable = (p: Product) =>
-  p.active && p.price !== null && p.stock !== null && p.stock > 0;
+  p.active && p.price !== null && p.stock !== null;
 export function calculateCart(
   cart: Cart,
   products: Product[],
@@ -124,7 +124,8 @@ export function calculateCart(
         (p) =>
           purchasable(p) &&
           Number.isInteger(p.quantity) &&
-          p.quantity <= (p.stock ?? 0),
+          p.quantity > 0 &&
+          p.quantity <= 999999,
       ),
   };
 }

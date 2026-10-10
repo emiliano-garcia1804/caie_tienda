@@ -126,3 +126,30 @@ it("exporta XLSX legible, columnas exactas, Status, decimales y movimientos", as
     "Operador sintético",
   );
 });
+
+it("exporta inventario negativo como número y lo resalta", async () => {
+  const w = new ExcelJS.Workbook();
+  await w.xlsx.load(
+    await exportWorkbook({
+      captured_at: "2026-10-10T18:00:00Z",
+      participants: [],
+      purchases: [],
+      events: [],
+      operators: [],
+      products: [
+        {
+          id: "p",
+          name: "Stock a conciliar",
+          category: "Hogar",
+          price: "2",
+          stock: -3,
+          active: true,
+          availability: "review",
+        },
+      ],
+    } as unknown as Snapshot),
+  );
+  const cell = w.getWorksheet("Inventario")!.getCell("C2");
+  expect(cell.value).toBe(-3);
+  expect(cell.font.color?.argb).toBe("FF9C0006");
+});
