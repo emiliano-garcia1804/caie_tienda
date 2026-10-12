@@ -14,6 +14,12 @@ Implementados el flujo móvil completo, administración, compras y anulaciones a
 
 ## Instalación y ejecución
 
+### Publicación alternativa con Netlify
+
+`netlify.toml` prepara la misma tienda para una dirección de Netlify: Node.js 24, `npm run build`, publicación de `dist` y base `/`. Usa la misma URL y publishable key públicas de Supabase y mantiene el acceso público autorizado. La compilación con base `/` está verificada. La publicación requiere vincular una cuenta de Netlify; la URL definitiva se comprobará después de subir el sitio. No se han migrado ni duplicado los registros.
+
+### Ejecución local
+
 Requiere Node.js 24 y npm. En PowerShell:
 
 ```powershell

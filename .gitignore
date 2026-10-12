@@ -3,6 +3,7 @@ dist/
 .env*
 !.env.example
 .local/
+.netlify/
 private/
 *.xlsx
 *.xls
